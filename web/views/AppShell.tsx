@@ -35,6 +35,7 @@ export default function AppShell({
 
   const subjects = new Map<string, NavTag[]>();
   for (const t of nav) {
+    if (t.type_tag === "미분류") continue; // 잡탕 카테고리는 노출 안 함
     const list = subjects.get(t.subject) ?? [];
     list.push(t);
     subjects.set(t.subject, list);
@@ -88,7 +89,21 @@ export default function AppShell({
         />
       ))}
 
-      <div className="mt-auto border-t border-line pt-3">
+      <div className="mt-auto space-y-2 border-t border-line pt-3">
+        <button
+          onClick={() => {
+            const next =
+              document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+            document.documentElement.dataset.theme = next;
+            try {
+              localStorage.setItem("theme", next);
+            } catch {}
+          }}
+          className="press flex w-full items-center justify-between rounded-lg px-3 py-2 text-[13px] font-semibold text-sub hover:bg-background"
+        >
+          다크모드 전환
+          <span aria-hidden>🌓</span>
+        </button>
         {user ? (
           <div className="flex items-center justify-between px-3 py-1">
             <span className="truncate text-[12px] text-muted">{user.email}</span>

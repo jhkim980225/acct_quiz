@@ -20,8 +20,14 @@ export default async function RootLayout({
   // 사이드바는 부가 요소 — DB 장애가 사이트 전체를 죽이면 안 됨
   const nav = await listSubjectTags().catch(() => []);
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <body>
+        {/* 테마를 첫 페인트 전에 적용해 플래시 방지 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t}catch(e){}`,
+          }}
+        />
         <AppShell nav={nav}>{children}</AppShell>
       </body>
     </html>

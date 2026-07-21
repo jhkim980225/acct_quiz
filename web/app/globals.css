@@ -37,12 +37,35 @@
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
 }
 
+/* 다크모드: 검정 대신 회색 계열 배경(토스 다크 느낌) */
+[data-theme="dark"] {
+  --background: #1b1d21;
+  --surface: #26282e;
+  --foreground: #e8eaed;
+  --sub: #aab0b8;
+  --muted: #8a919b;
+  --line: #363a41;
+  --blue: #4593fc;
+  --blue-dark: #6aa9ff;
+  --blue-soft: #22344d;
+  --red: #ff7b84;
+  --red-soft: #3c262a;
+  --green: #35c98e;
+  --green-soft: #1e3a2e;
+  --amber-soft: #3a3323;
+}
+
+[data-theme="dark"] .card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* ── 토스식 마이크로 인터랙션 ─────────────────────────── */

@@ -62,13 +62,24 @@ AREA_BY_TAG = {
     "원천징수": "소득세",
 }
 
+# 급수별 시험 범위. 범위 밖 영역의 규칙은 분류에서 제외
+# (예: 회계1급 급여 분개의 '원천징수' 단어가 소득세로 잡히는 오분류 방지).
+ALLOWED_AREAS = {
+    "전산회계1급": {"재무회계", "원가회계", "부가가치세"},
+    "전산회계2급": {"재무회계"},  # 2급 = 회계원리만
+    "전산세무2급": {"재무회계", "원가회계", "부가가치세", "소득세"},
+}
+
 
 def area_of(tag: str) -> str:
     return AREA_BY_TAG.get(tag, "재무회계")
 
 
-def classify(stem: str) -> str:
+def classify(stem: str, subject: str = "") -> str:
+    allowed = ALLOWED_AREAS.get(subject)
     for tag, pat in TYPE_RULES:
+        if allowed is not None and area_of(tag) not in allowed:
+            continue
         if re.search(pat, stem):
             return tag
     return "미분류"
@@ -189,13 +200,33 @@ def split_blocks(theory: str) -> list[tuple[int, str]]:
     return blocks
 
 
+def clean_explanation(text: str | None) -> str | None:
+    """해설 정리: PDF 줄폭 때문에 끊긴 줄은 이어붙이고,
+    불릿(ㆍ·※-)·보기번호(①~④)·괄호 주석으로 시작하는 줄만 새 줄로 유지."""
+    if not text:
+        return None
+    out: list[str] = []
+    for ln in (l.strip() for l in text.split("\n")):
+        if not ln:
+            continue
+        starts_new = bool(re.match(rf"^[ㆍ·※▶\-–—\[{GLYPHS}]", ln))
+        if starts_new or not out:
+            out.append(ln)
+        else:
+            out[-1] += " " + ln  # 줄바꿈 잔재 이어붙임
+    cleaned = "\n".join(out)
+    cleaned = re.sub(r"(\d)\s+원", r"\1원", cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    return cleaned or None
+
+
 def parse_block(num: int, block: str) -> dict:
     """블록 하나 → {stem, choices, answer_idx, explanation}. 실패 시 ValueError."""
     ans = re.search(rf"\[답\]\s*([{GLYPHS}](?:\s*,\s*[{GLYPHS}])*)", block)
     if not ans:
         raise ValueError("[답] 마커 없음")
     answer_idx = GLYPHS.index(ans.group(1)[0])
-    explanation = block[ans.end():].strip() or None
+    explanation = clean_explanation(block[ans.end():].strip() or None)
 
     body = block[: ans.start()]
     lines = [ln for ln in (l.strip() for l in body.split("\n")) if ln]
@@ -270,7 +301,7 @@ def parse_answer_pdf(pdf_path: Path) -> tuple[list[dict], list[dict]]:
         if len(accepted) > 1:
             note = "복수정답 인정: " + ",".join(GLYPHS[i] for i in accepted)
             q["explanation"] = ((q["explanation"] or "") + f" [{note}]").strip()
-        tag = classify(q["stem"])
+        tag = classify(q["stem"], subject)
         ok.append(
             {
                 "subject": subject,
@@ -394,7 +425,7 @@ def parse_practical(pdf_path: Path) -> list[dict]:
                     "subject": subject,
                     "category": category,
                     # 분개는 계정과목이 답에 있어 stem+답으로 분류(예: 단기매매증권 처분)
-                    "type_tag": (tag := classify(stem + " " + answer_text)),
+                    "type_tag": (tag := classify(stem + " " + answer_text, subject)),
                     "area": area_of(tag),
                     "stem": stem,
                     "choices": None,       # 4지선다 보기 생성은 별도 단계
@@ -465,7 +496,7 @@ def run_retry() -> None:
             {
                 "subject": subject,
                 "category": "이론",
-                "type_tag": (tag := classify(q["stem"])),
+                "type_tag": (tag := classify(q["stem"], subject)),
                 "area": area_of(tag),
                 "stem": q["stem"],
                 "choices": q["choices"],

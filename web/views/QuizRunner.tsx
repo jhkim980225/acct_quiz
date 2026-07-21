@@ -35,6 +35,7 @@ export default function QuizRunner({
   const [correct, setCorrect] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [wrongTags, setWrongTags] = useState<Set<string>>(new Set());
+  const [count, setCount] = useState<string>("10"); // "3"~"15" | "random"
 
   const load = useCallback(async () => {
     setItems(null);
@@ -53,7 +54,11 @@ export default function QuizRunner({
         const wrong = await getWrongQuestions();
         qs = await getQuestionsByIds(wrong.map((q) => q.id));
       } else {
-        qs = await getQuizSet({ subject, typeTag, area, limit: 10 });
+        const limit =
+          count === "random"
+            ? 3 + Math.floor(Math.random() * 13) // 3~15 랜덤
+            : Number(count);
+        qs = await getQuizSet({ subject, typeTag, area, limit });
       }
       setItems(
         qs.map((q) => ({
@@ -64,7 +69,7 @@ export default function QuizRunner({
     } catch {
       setFailed(true);
     }
-  }, [subject, typeTag, area, mode]);
+  }, [subject, typeTag, area, mode, count]);
 
   useEffect(() => {
     load();
@@ -207,6 +212,21 @@ export default function QuizRunner({
         <span className="text-[13px] font-bold text-muted">
           {idx + 1}/{items.length}
         </span>
+        {mode !== "wrong" && (
+          <select
+            aria-label="문제 수"
+            value={count}
+            onChange={(e) => setCount(e.target.value)} // 변경 시 새 세트로 재시작
+            className="rounded-lg border border-line bg-surface px-2 py-1 text-[13px] font-semibold text-sub outline-none focus:border-blue"
+          >
+            {Array.from({ length: 13 }, (_, i) => i + 3).map((n) => (
+              <option key={n} value={n}>
+                {n}문제
+              </option>
+            ))}
+            <option value="random">랜덤</option>
+          </select>
+        )}
       </div>
 
       <div key={item.q.id} className="rise">

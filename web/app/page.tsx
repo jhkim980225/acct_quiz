@@ -9,7 +9,10 @@ export default async function Home() {
   const mixed = (await listMixedTags()).filter((t) => t.type_tag !== "미분류");
   const totalQ = tags.reduce((s, t) => s + t.count, 0);
   const subjects = [...new Set(tags.map((t) => t.subject))];
-  const top = [...tags].sort((a, b) => b.count - a.count).slice(0, 6);
+  const top = tags
+    .filter((t) => t.type_tag !== "미분류")
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
 
   return (
     <div className="space-y-5">
@@ -66,14 +69,19 @@ export default async function Home() {
           if (items.length === 0) return null;
           const total = items.reduce((s, t) => s + t.count, 0);
           return (
-            <div key={area} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-bold text-sub">{area}</p>
+            <div key={area} className="space-y-3 rounded-xl bg-background p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[14px] font-bold">
+                  {area}
+                  <span className="ml-1.5 text-[12px] font-semibold text-muted">
+                    {total}문항
+                  </span>
+                </p>
                 <Link
                   href={`/quiz?area=${encodeURIComponent(area)}`}
-                  className="press rounded-lg bg-background px-3 py-1 text-[12px] font-bold text-blue hover:bg-blue-soft"
+                  className="press shrink-0 rounded-lg bg-blue px-3 py-1.5 text-[12px] font-bold text-white hover:bg-blue-dark"
                 >
-                  {area} 전체 풀기 {total}
+                  전체 풀기
                 </Link>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -81,9 +89,9 @@ export default async function Home() {
                   <Link
                     key={t.type_tag}
                     href={`/quiz?type_tag=${encodeURIComponent(t.type_tag)}`}
-                    className="press rounded-full bg-blue-soft px-4 py-2 text-[13.5px] font-bold text-blue"
+                    className="press rounded-full bg-surface px-4 py-2 text-[13.5px] font-bold text-blue shadow-sm"
                   >
-                    {t.type_tag} <span className="font-medium opacity-70">{t.count}</span>
+                    {t.type_tag} <span className="font-medium text-muted">{t.count}</span>
                   </Link>
                 ))}
               </div>
