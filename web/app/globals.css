@@ -156,6 +156,19 @@ input:focus-visible {
   }
 }
 
+/* 히어로 배경: 은은한 블루 글로우 */
+.hero-glow::before {
+  content: "";
+  position: absolute;
+  inset: -40px -20% auto;
+  height: 420px;
+  background:
+    radial-gradient(420px 260px at 78% 30%, color-mix(in srgb, var(--blue) 14%, transparent), transparent 70%),
+    radial-gradient(300px 200px at 15% 75%, color-mix(in srgb, var(--blue) 8%, transparent), transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
 ::selection {
   background: var(--blue-soft);
 }

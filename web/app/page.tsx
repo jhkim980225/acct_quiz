@@ -1,9 +1,16 @@
 import Link from "next/link";
-import { listSubjectTags, listMixedTags, AREA_ORDER } from "@/models/question";
+import {
+  listSubjectTags,
+  listMixedTags,
+  getQuizSet,
+  AREA_ORDER,
+} from "@/models/question";
+import { shuffleChoices } from "@/models/shuffle";
+import DemoQuestion from "@/views/DemoQuestion";
 
-export const revalidate = 3600; // 1시간 ISR: 새 문제 적재가 재배포 없이 반영
+export const revalidate = 3600; // 1시간 ISR: 데모 문제도 1시간마다 교체
 
-/** 홈(F4). 사이드바가 색인을 담당하므로 홈은 요약 대시보드. */
+/** 홈(F4). 히어로에서 바로 한 문제 풀게 하는 즉시 체험형 랜딩. */
 export default async function Home() {
   const tags = await listSubjectTags();
   const mixed = (await listMixedTags()).filter((t) => t.type_tag !== "미분류");
@@ -13,26 +20,63 @@ export default async function Home() {
     .filter((t) => t.type_tag !== "미분류")
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
+  // 데모는 짧고 깔끔한 문제로 — 후보 8개 중 stem 최단. ISR 주기마다 교체
+  const demo = (await getQuizSet({ limit: 8 })).sort(
+    (a, b) => a.stem.length - b.stem.length,
+  )[0];
 
   return (
     <div className="space-y-5">
-      {/* 히어로 */}
-      <section className="card rise space-y-4 p-7" style={{ animationDelay: "0ms" }}>
-        <h1 className="text-2xl font-bold leading-snug tracking-tight">
-          기출을 유형별로,
-          <br />
-          <span className="text-blue">풀면서</span> 외우세요
-        </h1>
-        <p className="text-[15px] leading-relaxed text-sub">
-          전산회계 기출 {totalQ}문제를 유형별 4지선다로. 보기 클릭하면 바로
-          채점되고 해설까지 보여드려요.
-        </p>
-        <Link
-          href="/quiz"
-          className="press inline-block rounded-xl bg-blue px-6 py-3.5 font-bold text-white hover:bg-blue-dark"
-        >
-          바로 문제풀기
-        </Link>
+      {/* 히어로: 카피 + 라이브 데모 문제 */}
+      <section className="hero-glow rise relative -mx-4 px-4 pb-2 pt-4 lg:-mx-10 lg:px-10">
+        <div className="grid items-center gap-8 lg:grid-cols-[1fr_1.1fr]">
+          <div className="space-y-5">
+            <div className="flex flex-wrap gap-2">
+              {["무료", "회원가입 없이 바로", "공식 해설 포함"].map((b) => (
+                <span
+                  key={b}
+                  className="rounded-full bg-blue-soft px-3 py-1 text-[12px] font-bold text-blue"
+                >
+                  ✓ {b}
+                </span>
+              ))}
+            </div>
+            <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
+              전산회계 기출 {totalQ.toLocaleString()}문제,
+              <br />
+              <span className="text-blue">지금 바로</span> 풀어보세요
+            </h1>
+            <p className="text-[15px] leading-relaxed text-sub">
+              전산회계 1급·2급, 전산세무 2급 기출을 유형별로. 보기를 누르는
+              순간 채점되고, 공식 해설이 바로 따라와요. 오른쪽 문제로 지금
+              시험해보세요.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/quiz"
+                className="press rounded-xl bg-blue px-6 py-3.5 font-bold text-white hover:bg-blue-dark"
+              >
+                바로 문제풀기
+              </Link>
+              <Link
+                href="/wrong"
+                className="press rounded-xl bg-surface px-6 py-3.5 font-bold text-sub shadow-sm hover:text-blue"
+              >
+                오답노트
+              </Link>
+            </div>
+          </div>
+
+          {demo && demo.choices && demo.answer_idx !== null && (
+            <div className="rise" style={{ animationDelay: "150ms" }}>
+              <DemoQuestion
+                q={demo}
+                shuffled={shuffleChoices(demo.choices, demo.answer_idx, demo.id)}
+                total={totalQ}
+              />
+            </div>
+          )}
+        </div>
       </section>
 
       {/* 통계 */}
