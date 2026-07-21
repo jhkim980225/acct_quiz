@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getQuizSet, type Question } from "@/models/question";
+import Link from "next/link";
+import type { User } from "@supabase/supabase-js";
+import {
+  getQuizSet,
+  getQuestionsByIds,
+  type Question,
+} from "@/models/question";
 import { shuffleChoices } from "@/models/shuffle";
 import { recordLocal } from "@/models/localAttempts";
+import { getSessionUser } from "@/models/auth";
+import { getWrongQuestions, recordAttempt } from "@/models/attempt";
 import QuestionCard from "@/views/QuestionCard";
 
 type Item = { q: Question; shuffled: { choices: string[]; answerIdx: number } };
@@ -11,25 +19,53 @@ type Item = { q: Question; shuffled: { choices: string[]; answerIdx: number } };
 export default function QuizRunner({
   subject,
   typeTag,
+  mode,
 }: {
   subject?: string;
   typeTag?: string;
+  mode?: string;
 }) {
+  const [user, setUser] = useState<User | null>(null);
   const [items, setItems] = useState<Item[] | null>(null);
+  const [needLogin, setNeedLogin] = useState(false);
   const [idx, setIdx] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [answered, setAnswered] = useState(false);
 
   useEffect(() => {
-    getQuizSet({ subject, typeTag, limit: 10 }).then((qs) =>
+    (async () => {
+      const u = await getSessionUser();
+      setUser(u);
+      let qs: Question[];
+      if (mode === "wrong") {
+        if (!u) return setNeedLogin(true);
+        // 오답 다시풀기(F7): 4지선다만 (분개·결산은 오답노트에서 열람)
+        const wrong = await getWrongQuestions();
+        qs = await getQuestionsByIds(wrong.map((q) => q.id));
+      } else {
+        qs = await getQuizSet({ subject, typeTag, limit: 10 });
+      }
       setItems(
         qs.map((q) => ({
           q,
           shuffled: shuffleChoices(q.choices!, q.answer_idx!),
         })),
-      ),
+      );
+    })();
+  }, [subject, typeTag, mode]);
+
+  if (needLogin)
+    return (
+      <div className="card space-y-4 p-10 text-center">
+        <p className="font-bold">오답 다시풀기는 로그인이 필요해요</p>
+        <Link
+          href="/wrong"
+          className="press inline-block rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
+        >
+          로그인하러 가기
+        </Link>
+      </div>
     );
-  }, [subject, typeTag]);
 
   if (items === null)
     return (
@@ -40,7 +76,7 @@ export default function QuizRunner({
   if (items.length === 0)
     return (
       <div className="card p-12 text-center text-sub">
-        해당 조건의 문제가 없어요.
+        {mode === "wrong" ? "다시 풀 오답이 없어요 🎉" : "해당 조건의 문제가 없어요."}
       </div>
     );
 
@@ -67,12 +103,30 @@ export default function QuizRunner({
               ? "좋아요, 틀린 문제만 다시 보면 합격권이에요"
               : "기초 유형부터 차근차근 다시 풀어봐요"}
         </p>
-        <button
-          className="press w-full max-w-xs rounded-xl bg-blue px-4 py-3.5 font-bold text-white hover:bg-blue-dark"
-          onClick={() => location.reload()}
-        >
-          다시 풀기
-        </button>
+        <div className="mx-auto flex w-full max-w-xs flex-col gap-2">
+          <button
+            className="press rounded-xl bg-blue px-4 py-3.5 font-bold text-white hover:bg-blue-dark"
+            onClick={() => location.reload()}
+          >
+            다시 풀기
+          </button>
+          {!user && correct < items.length && (
+            <Link
+              href="/wrong"
+              className="press rounded-xl bg-blue-soft px-4 py-3.5 font-bold text-blue"
+            >
+              로그인하고 오답 저장하기
+            </Link>
+          )}
+          {user && (
+            <Link
+              href="/wrong"
+              className="press rounded-xl bg-blue-soft px-4 py-3.5 font-bold text-blue"
+            >
+              오답노트 보기
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
@@ -101,11 +155,15 @@ export default function QuizRunner({
           onAnswer={(chosenIdx, isCorrect) => {
             setAnswered(true);
             if (isCorrect) setCorrect((c) => c + 1);
-            recordLocal({
-              question_id: item.q.id,
-              chosen_idx: chosenIdx,
-              is_correct: isCorrect,
-            });
+            if (user) {
+              recordAttempt(user.id, item.q.id, chosenIdx, isCorrect);
+            } else {
+              recordLocal({
+                question_id: item.q.id,
+                chosen_idx: chosenIdx,
+                is_correct: isCorrect,
+              });
+            }
           }}
         />
       </div>

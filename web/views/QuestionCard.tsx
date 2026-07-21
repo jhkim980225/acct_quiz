@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Question } from "@/models/question";
+import ReportButton from "@/views/ReportButton";
 
 const NUM = "①②③④";
 
@@ -108,6 +109,12 @@ export default function QuestionCard({
         <div className="rise mt-3 rounded-xl bg-amber-soft p-4 text-[13.5px] leading-relaxed text-sub">
           <span className="mb-1 block font-bold text-foreground">해설</span>
           <span className="whitespace-pre-wrap break-words">{q.explanation}</span>
+        </div>
+      )}
+
+      {(done || showAnswer) && (
+        <div className="mt-3 flex justify-end">
+          <ReportButton questionId={q.id} />
         </div>
       )}
     </div>

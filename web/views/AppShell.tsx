@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
+import { getSessionUser, onAuthChange, signOut } from "@/models/auth";
 
 export type NavTag = { subject: string; type_tag: string; count: number };
 
@@ -15,7 +17,13 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const pathname = usePathname();
+
+  useEffect(() => {
+    getSessionUser().then(setUser);
+    return onAuthChange(setUser);
+  }, []);
 
   const subjects = new Map<string, NavTag[]>();
   for (const t of nav) {
@@ -49,6 +57,19 @@ export default function AppShell({
         바로 문제풀기
       </Link>
 
+      <Link
+        href="/wrong"
+        onClick={() => setOpen(false)}
+        className={`press mb-3 flex items-center justify-between rounded-xl px-4 py-2.5 text-[14px] font-bold ${
+          pathname === "/wrong"
+            ? "bg-blue-soft text-blue"
+            : "bg-background text-sub hover:bg-blue-soft hover:text-blue"
+        }`}
+      >
+        오답노트
+        {!user && <span className="text-[11px] font-medium text-muted">로그인</span>}
+      </Link>
+
       {[...subjects.entries()].map(([subject, list]) => (
         <SubjectGroup
           key={subject}
@@ -58,6 +79,28 @@ export default function AppShell({
           onNavigate={() => setOpen(false)}
         />
       ))}
+
+      <div className="mt-auto border-t border-line pt-3">
+        {user ? (
+          <div className="flex items-center justify-between px-3 py-1">
+            <span className="truncate text-[12px] text-muted">{user.email}</span>
+            <button
+              onClick={() => signOut()}
+              className="shrink-0 text-[12px] font-semibold text-sub hover:text-red"
+            >
+              로그아웃
+            </button>
+          </div>
+        ) : (
+          <Link
+            href="/wrong"
+            onClick={() => setOpen(false)}
+            className="block px-3 py-1 text-[12px] text-muted hover:text-blue"
+          >
+            로그인하면 오답노트가 저장돼요
+          </Link>
+        )}
+      </div>
     </div>
   );
 
