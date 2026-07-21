@@ -3,9 +3,10 @@
 import { useState } from "react";
 import type { Question } from "@/models/question";
 
-/** 문제 카드. 유형 페이지·퀴즈 공용.
- *  이론: 보기 클릭 → 즉시 채점. 실무: "정답 보기" 토글(answer_text).
- *  shuffled: 셔플된 보기와 재매핑된 정답(부모가 shuffleChoices로 만들어 전달). */
+const NUM = "①②③④";
+
+/** 문제 카드(토스 스타일). 유형 페이지·퀴즈 공용.
+ *  이론: 보기 클릭 → 즉시 채점. 실무: "정답 보기" 토글(answer_text). */
 export default function QuestionCard({
   q,
   shuffled,
@@ -21,6 +22,7 @@ export default function QuestionCard({
   const choices = shuffled?.choices ?? q.choices;
   const answerIdx = shuffled?.answerIdx ?? q.answer_idx;
   const done = chosen !== null;
+  const correct = done && chosen === answerIdx;
 
   function pick(i: number) {
     if (done || answerIdx === null) return;
@@ -29,30 +31,34 @@ export default function QuestionCard({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <p className="whitespace-pre-wrap font-medium">{q.stem}</p>
-        <span className="shrink-0 text-xs text-gray-500">{q.source}</span>
+    <div className="card p-5 sm:p-6">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <p className="whitespace-pre-wrap text-[15px] font-semibold leading-relaxed">
+          {q.stem}
+        </p>
+        {q.source && (
+          <span className="shrink-0 rounded-full bg-background px-2.5 py-1 text-[11px] font-medium text-muted">
+            {q.source}
+          </span>
+        )}
       </div>
 
       {choices && answerIdx !== null && (
-        <ol className="space-y-1.5">
+        <ol className="space-y-2">
           {choices.map((c, i) => {
+            const isAnswer = done && i === answerIdx;
+            const isWrongPick = done && i === chosen && i !== answerIdx;
             let cls =
-              "w-full text-left rounded border px-3 py-2 text-sm transition-colors ";
-            if (!done) {
-              cls += "border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer";
-            } else if (i === answerIdx) {
-              cls += "border-green-500 bg-green-50 dark:bg-green-950";
-            } else if (i === chosen) {
-              cls += "border-red-500 bg-red-50 dark:bg-red-950";
-            } else {
-              cls += "border-gray-200 dark:border-gray-700 opacity-60";
-            }
+              "press w-full rounded-xl border px-4 py-3 text-left text-[14px] leading-snug ";
+            if (isAnswer) cls += "pop border-green bg-green-soft font-bold text-green";
+            else if (isWrongPick) cls += "shake border-red bg-red-soft font-bold text-red";
+            else if (done) cls += "border-transparent bg-background text-muted";
+            else cls += "border-transparent bg-background hover:bg-blue-soft cursor-pointer";
             return (
               <li key={i}>
                 <button className={cls} onClick={() => pick(i)} disabled={done}>
-                  {"①②③④"[i]} {c}
+                  <span className="mr-1.5 font-bold">{NUM[i]}</span>
+                  {c}
                 </button>
               </li>
             );
@@ -61,31 +67,34 @@ export default function QuestionCard({
       )}
 
       {q.answer_text && (
-        <div>
+        <div className="mt-1">
           <button
-            className="text-sm text-blue-600 dark:text-blue-400 underline"
+            className="press rounded-xl bg-blue-soft px-4 py-2.5 text-[14px] font-bold text-blue"
             onClick={() => setShowAnswer((v) => !v)}
           >
             {showAnswer ? "정답 접기" : "정답 보기"}
           </button>
           {showAnswer && (
-            <p className="mt-2 whitespace-pre-wrap rounded bg-gray-100 dark:bg-gray-800 p-3 text-sm">
+            <p className="pop mt-3 whitespace-pre-wrap rounded-xl bg-background p-4 text-[14px] leading-relaxed">
               {q.answer_text}
             </p>
           )}
         </div>
       )}
 
-      {(done || (showAnswer && q.answer_text)) && q.explanation && (
-        <p className="whitespace-pre-wrap rounded bg-amber-50 dark:bg-amber-950 p-3 text-sm">
-          <span className="font-semibold">해설</span> {q.explanation}
+      {done && (
+        <p
+          className={`pop mt-4 text-[15px] font-bold ${correct ? "text-green" : "text-red"}`}
+        >
+          {correct ? "정답이에요 🎉" : `아쉬워요, 정답은 ${NUM[answerIdx!]}`}
         </p>
       )}
 
-      {done && (
-        <p className={`text-sm font-semibold ${chosen === answerIdx ? "text-green-600" : "text-red-600"}`}>
-          {chosen === answerIdx ? "정답!" : `오답 — 정답은 ${"①②③④"[answerIdx!]}`}
-        </p>
+      {(done || (showAnswer && q.answer_text)) && q.explanation && (
+        <div className="rise mt-3 rounded-xl bg-amber-soft p-4 text-[13.5px] leading-relaxed text-sub">
+          <span className="mb-1 block font-bold text-foreground">해설</span>
+          <span className="whitespace-pre-wrap">{q.explanation}</span>
+        </div>
       )}
     </div>
   );

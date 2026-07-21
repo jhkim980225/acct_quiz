@@ -37,47 +37,51 @@ export default async function TypeTagPage({ params }: { params: Params }) {
     .slice(0, 6);
 
   return (
-    <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold">
-          {s} — {t}
-        </h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {questions.length}문항 · 보기를 클릭하면 바로 채점됩니다
+    <div className="space-y-5">
+      <header className="card rise space-y-3 p-6">
+        <p className="text-[13px] font-semibold text-muted">{s}</p>
+        <h1 className="text-2xl font-bold tracking-tight">{t}</h1>
+        <p className="text-[14px] text-sub">
+          {questions.length}문항 · 보기를 누르면 바로 채점돼요
         </p>
         <Link
           href={`/quiz?subject=${encodeURIComponent(s)}&type_tag=${encodeURIComponent(t)}`}
-          className="inline-block rounded bg-blue-600 px-3 py-1.5 text-sm text-white"
+          className="press inline-block rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
         >
           이 유형만 랜덤 풀기
         </Link>
       </header>
 
       <div className="space-y-4">
-        {questions.map((q) => (
-          <QuestionCard
+        {questions.map((q, i) => (
+          <div
             key={q.id}
-            q={q}
-            shuffled={
-              q.choices && q.answer_idx !== null
-                ? shuffleChoices(q.choices, q.answer_idx, q.id) // 빌드 타임 고정 셔플(F11)
-                : undefined
-            }
-          />
+            className="rise"
+            style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+          >
+            <QuestionCard
+              q={q}
+              shuffled={
+                q.choices && q.answer_idx !== null
+                  ? shuffleChoices(q.choices, q.answer_idx, q.id) // 빌드 타임 고정 셔플(F11)
+                  : undefined
+              }
+            />
+          </div>
         ))}
       </div>
 
       {related.length > 0 && (
-        <nav className="border-t border-gray-200 dark:border-gray-800 pt-4">
-          <h2 className="mb-2 text-sm font-semibold text-gray-500">관련 유형</h2>
+        <nav className="card p-5">
+          <h2 className="mb-3 text-[13px] font-bold text-muted">관련 유형</h2>
           <ul className="flex flex-wrap gap-2">
             {related.map((r) => (
               <li key={r.type_tag}>
                 <Link
                   href={`/${encodeURIComponent(s)}/${encodeURIComponent(r.type_tag)}`}
-                  className="rounded border border-gray-200 dark:border-gray-700 px-3 py-1 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="press inline-block rounded-full bg-background px-4 py-2 text-[13.5px] font-semibold text-sub hover:bg-blue-soft hover:text-blue"
                 >
-                  {r.type_tag} ({r.count})
+                  {r.type_tag} {r.count}
                 </Link>
               </li>
             ))}
