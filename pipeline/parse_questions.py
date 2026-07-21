@@ -142,8 +142,13 @@ def load_theory_text(pdf_path: Path) -> tuple[str, list[list[int]]]:
     m = re.search(r"A형(.*?)B형", raw_full, re.DOTALL)
     if not m:
         raise ValueError("A형 정답표를 찾지 못함")
-    entries = re.findall(rf"[{GLYPHS}](?:\s*,\s*[{GLYPHS}])*", m.group(1))
-    key = [[GLYPHS.index(g) for g in re.findall(f"[{GLYPHS}]", e)] for e in entries]
+    entries = re.findall(
+        rf"[{GLYPHS}](?:\s*,\s*[{GLYPHS}])*|모두\s*정답|전항\s*정답", m.group(1)
+    )
+    key = [
+        [0, 1, 2, 3] if "정답" in e else [GLYPHS.index(g) for g in re.findall(f"[{GLYPHS}]", e)]
+        for e in entries
+    ]
     if len(key) != 15:
         raise ValueError(f"A형 정답표가 15개가 아님: {len(key)}개")
 

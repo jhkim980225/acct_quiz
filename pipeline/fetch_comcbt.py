@@ -29,21 +29,33 @@ BOARDS = {  # 게시판 코드 → subject 라벨
 }
 
 
-def list_posts(session: requests.Session, board: str) -> list[tuple[str, str]]:
-    """게시판 첫 페이지의 (제목, 글URL) 목록. 최신순."""
-    resp = session.get(f"{BASE}/xe/{board}", timeout=30)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
+def list_posts(session: requests.Session, board: str, pages: int = 5) -> list[tuple[str, str]]:
+    """게시판 1~N페이지의 (제목, 글URL) 목록. 최신순."""
     posts: list[tuple[str, str]] = []
     seen: set[str] = set()
-    # XE 게시판 글 링크: /xe/<board>/<숫자>
-    for a in soup.select("a[href]"):
-        href = a.get("href", "")
-        m = re.search(rf"/xe/{board}/(\d+)$", href)
-        title = a.get_text(strip=True)
-        if m and title and m.group(1) not in seen:
-            seen.add(m.group(1))
-            posts.append((title, urljoin(BASE, href)))
+    for page in range(1, pages + 1):
+        url = (
+            f"{BASE}/xe/{board}"
+            if page == 1
+            else f"{BASE}/xe/index.php?mid={board}&page={page}"
+        )
+        resp = session.get(url, timeout=30)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        found = 0
+        # XE 게시판 글 링크: /xe/<board>/<숫자> 또는 document_srl 링크
+        for a in soup.select("a[href]"):
+            href = a.get("href", "")
+            m = re.search(rf"/xe/{board}/(\d+)$", href) or re.search(
+                r"document_srl=(\d+)", href
+            )
+            title = a.get_text(strip=True)
+            if m and title and m.group(1) not in seen:
+                seen.add(m.group(1))
+                posts.append((title, urljoin(BASE, href)))
+                found += 1
+        if found == 0:
+            break  # 마지막 페이지 이후
     return posts
 
 
