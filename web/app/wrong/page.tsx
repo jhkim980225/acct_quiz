@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import type { Question } from "@/models/question";
-import { getSessionUser, onAuthChange, signOut } from "@/models/auth";
+import { getSessionUser, onAuthChange } from "@/models/auth";
 import { getWrongQuestions, migrateLocalAttempts } from "@/models/attempt";
 import { shuffleChoices } from "@/models/shuffle";
 import LoginCard from "@/views/LoginCard";
@@ -15,6 +15,7 @@ export default function WrongPage() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [items, setItems] = useState<Question[] | null>(null);
   const [migrated, setMigrated] = useState(0);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     getSessionUser().then(setUser);
@@ -24,9 +25,14 @@ export default function WrongPage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const n = await migrateLocalAttempts(user.id);
-      setMigrated(n);
-      setItems(await getWrongQuestions());
+      try {
+        setFailed(false);
+        const n = await migrateLocalAttempts(user.id);
+        setMigrated(n);
+        setItems(await getWrongQuestions());
+      } catch {
+        setFailed(true);
+      }
     })();
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -46,12 +52,7 @@ export default function WrongPage() {
       <header className="rise flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">오답노트</h1>
-          <p className="mt-1 text-[13px] text-muted">
-            {user.email} ·{" "}
-            <button onClick={() => signOut()} className="underline">
-              로그아웃
-            </button>
-          </p>
+          <p className="mt-1 text-[13px] text-muted">{user.email}</p>
         </div>
         {items && items.length > 0 && (
           <Link
@@ -69,7 +70,17 @@ export default function WrongPage() {
         </p>
       )}
 
-      {items === null ? (
+      {failed ? (
+        <div className="card space-y-3 p-10 text-center">
+          <p className="font-bold">오답노트를 불러오지 못했어요</p>
+          <button
+            onClick={() => location.reload()}
+            className="press rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
+          >
+            다시 시도
+          </button>
+        </div>
+      ) : items === null ? (
         <div className="card p-12 text-center text-muted">불러오는 중…</div>
       ) : items.length === 0 ? (
         <div className="card space-y-3 p-10 text-center">

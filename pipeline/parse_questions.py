@@ -25,22 +25,33 @@ OUT_DIR = Path(__file__).parent / "out"
 
 GLYPHS = "①②③④"
 
-# type_tag 키워드 규칙. 첫 매칭 승. 커버리지 우선, 미매칭은 미분류.
+# type_tag 키워드 규칙. 첫 매칭 승(구체적 유형 먼저). 커버리지 우선, 미매칭은 미분류.
 TYPE_RULES: list[tuple[str, str]] = [
-    ("부가세", r"부가가치세"),
+    ("부가세", r"부가가치세|세금계산서|매입세액|과세표준|간이과세|영세율"),
+    ("원천징수", r"원천징수|연말정산|일용직|근로소득|퇴직소득|사업소득"),
+    ("소득세", r"소득세법|종합소득|기타소득|이자소득|배당소득"),
     ("감가상각", r"감가상각"),
+    ("유가증권", r"단기매매증권|매도가능증권|만기보유증권|유가증권|자기주식"),
+    ("재고자산", r"재고자산|선입선출|후입선출|총평균|이동평균|소모품"),
+    ("대손", r"대손"),
+    ("어음", r"받을어음|지급어음|약속어음|어음"),
+    ("퇴직급여", r"퇴직연금|퇴직급여"),
+    ("급여", r"급여|임금|상여금"),
+    ("가지급금", r"가지급금|가수금"),
+    ("외화환산", r"외화|환율|외환차"),
+    ("차입금", r"장기차입금|단기차입금|차입금"),
+    ("채권채무", r"외상매출금|외상매입금|미수금|미지급금|선수금|선급금"),
+    ("이자손익", r"미수수익|이자수익|이자비용|미지급비용|선급비용"),
+    ("현금예금", r"현금및현금성|현금성자산|당좌예금|정기예금|현금과부족|당좌차월"),
+    ("유형자산", r"유형자산|자본적 지출|취득원가"),
+    ("무형자산", r"무형자산|개발비|영업권"),
+    ("자본", r"자본금|자본잉여금|이익잉여금|주식발행|증자|배당"),
+    ("부채", r"유동부채|비유동부채|사채|충당부채"),
     ("재무상태표", r"재무상태표"),
     ("손익계산서", r"손익계산서"),
-    ("유가증권", r"단기매매증권|매도가능증권|만기보유증권|유가증권"),
-    ("재고자산", r"재고자산|선입선출|후입선출|총평균|이동평균"),
-    ("유형자산", r"유형자산"),
-    ("무형자산", r"무형자산"),
-    ("대손", r"대손"),
-    ("자본", r"자본금|자본잉여금|이익잉여금|주식발행"),
-    ("부채", r"유동부채|비유동부채|사채|충당부채"),
-    ("수익비용", r"수익의 인식|수익인식|발생주의|비용의 인식"),
+    ("수익비용", r"수익의 인식|수익인식|발생주의|비용의 인식|수익비용"),
     ("원가", r"원가"),
-    ("회계원칙", r"회계의 순환|회계정보|재무제표|회계처리의 기본"),
+    ("회계원칙", r"회계의 순환|회계정보|재무제표|회계처리의 기본|회계상 거래"),
 ]
 
 
@@ -67,6 +78,7 @@ def _page_lines(page) -> list[str]:
 
     보기 첫 줄은 마커(①~④)와 y 좌표가 일치하고, 이어지는 줄은 어떤 마커의
     y 와도 일치하지 않는다. 이를 이용해 이어짐 줄을 앞 줄에 병합한다.
+    2단 조판 페이지(세무2급 일부 회차)는 좌/우 컬럼을 나눠 순서대로 처리한다.
     """
     raw: list[tuple[float, float, str]] = []  # (x, y, text)
     for block in page.get_text("dict")["blocks"]:
@@ -75,19 +87,32 @@ def _page_lines(page) -> list[str]:
             if text:
                 x, y = line["bbox"][0], round(line["bbox"][1], 1)
                 raw.append((x, y, text))
-    raw.sort(key=lambda t: (t[1], t[0]))
 
-    marker_ys = {y for _x, y, t in raw if t in tuple(GLYPHS)}
-    out: list[str] = []
-    prev_indented = False
-    for x, y, text in raw:
-        indented = x > 65  # 보기 텍스트 열(x≈72). 마커/문항/[답]은 x≈56.
-        if indented and prev_indented and y not in marker_ys and out:
-            out[-1] = out[-1] + " " + text  # 줄바꿈된 보기 이어붙임
-        else:
-            out.append(text)
-        prev_indented = indented
-    return out
+    def emit(lines: list[tuple[float, float, str]], indent_x: float) -> list[str]:
+        lines = sorted(lines, key=lambda t: (t[1], t[0]))
+        marker_ys = {y for _x, y, t in lines if t in tuple(GLYPHS)}
+        out: list[str] = []
+        prev_indented = False
+        for x, y, text in lines:
+            indented = x > indent_x  # 보기 텍스트 열. 마커/문항/[답]은 그보다 왼쪽.
+            if indented and prev_indented and y not in marker_ys and out:
+                out[-1] = out[-1] + " " + text  # 줄바꿈된 보기 이어붙임
+            else:
+                out.append(text)
+            prev_indented = indented
+        return out
+
+    # 2단 감지: 페이지 중앙 이후에서 시작하는 줄이 30% 이상이면 좌→우 컬럼 순 처리
+    # 가로 조판 페이지(세무2급 일부 회차)만 2단. 세로 페이지는 항상 1단.
+    if page.rect.width > page.rect.height:
+        mid = page.rect.width / 2
+        left = [l for l in raw if l[0] < mid]
+        right = [l for l in raw if l[0] >= mid]
+        # 컬럼별 들여쓰기 기준: 컬럼 시작선 + 12pt (마커열과 보기열 사이)
+        lx = min(l[0] for l in left) + 12 if left else 65
+        rx = min(l[0] for l in right) + 12 if right else 65
+        return emit(left, lx) + emit(right, rx)
+    return emit(raw, 65)
 
 
 def load_theory_text(pdf_path: Path) -> tuple[str, list[list[int]]]:
@@ -100,8 +125,9 @@ def load_theory_text(pdf_path: Path) -> tuple[str, list[list[int]]]:
     doc = fitz.open(pdf_path)
     full = "\n".join("\n".join(_page_lines(page)) for page in doc)
 
-    # A형 정답표: 'A형' 다음 'B형' 전까지. 항목은 '④' 또는 '②,③'(복수정답).
-    m = re.search(r"A형(.*?)B형", full, re.DOTALL)
+    # A형 정답표는 원시 텍스트에서 추출 — 시각 줄 병합이 표 순서를 흐트릴 수 있음.
+    raw_full = "\n".join(page.get_text() for page in doc)
+    m = re.search(r"A형(.*?)B형", raw_full, re.DOTALL)
     if not m:
         raise ValueError("A형 정답표를 찾지 못함")
     entries = re.findall(rf"[{GLYPHS}](?:\s*,\s*[{GLYPHS}])*", m.group(1))
@@ -251,8 +277,19 @@ _SECTION_CHARS = set("이론시험실무형AB")
 
 def _visual_lines(page) -> list[str]:
     """단어를 y좌표로 줄 단위 재구성. 어음·세금계산서 같은 서식(표)이
-    읽기 순서가 아니라 눈에 보이는 행 순서로 나온다."""
-    words = sorted(page.get_text("words"), key=lambda w: (w[1], w[0]))
+    읽기 순서가 아니라 눈에 보이는 행 순서로 나온다.
+    가로 조판(2단) 페이지는 좌/우 컬럼을 나눠 차례로 처리한다."""
+    all_words = page.get_text("words")
+    if page.rect.width > page.rect.height:
+        mid = page.rect.width / 2
+        left = [w for w in all_words if w[0] < mid]
+        right = [w for w in all_words if w[0] >= mid]
+        return _vl_group(left) + _vl_group(right)
+    return _vl_group(all_words)
+
+
+def _vl_group(all_words) -> list[str]:
+    words = sorted(all_words, key=lambda w: (w[1], w[0]))
     lines: list[str] = []
     row: list = []
     row_y = None

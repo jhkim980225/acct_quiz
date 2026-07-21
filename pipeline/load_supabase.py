@@ -41,6 +41,16 @@ def main() -> None:
         raise SystemExit(".env 의 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 확인.")
 
     rows = json.loads(OUT.read_text(encoding="utf-8"))
+    # 회차 간 동일 문제 재출제 → 배치 내 중복 stem 제거(첫 항목 유지)
+    seen: set[str] = set()
+    deduped = []
+    for r in rows:
+        if r["stem"] not in seen:
+            seen.add(r["stem"])
+            deduped.append(r)
+    if len(deduped) < len(rows):
+        print(f"배치 내 중복 stem {len(rows) - len(deduped)}건 제거")
+    rows = deduped
     # 테이블 컬럼만, 전 행 동일 키로 (PostgREST 일괄 insert 요건)
     cols = ("subject", "category", "type_tag", "stem", "choices",
             "answer_idx", "answer_text", "explanation", "source")
@@ -52,7 +62,8 @@ def main() -> None:
             "apikey": key,
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
-            "Prefer": "resolution=ignore-duplicates,return=minimal",
+            # merge: 같은 stem 재적재 시 type_tag·해설 등 갱신 반영
+            "Prefer": "resolution=merge-duplicates,return=minimal",
         },
         json=payload,
         timeout=60,

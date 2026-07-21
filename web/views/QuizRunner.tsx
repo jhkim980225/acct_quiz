@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -27,13 +27,21 @@ export default function QuizRunner({
 }) {
   const [user, setUser] = useState<User | null>(null);
   const [items, setItems] = useState<Item[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [needLogin, setNeedLogin] = useState(false);
   const [idx, setIdx] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [answered, setAnswered] = useState(false);
+  const [wrongTags, setWrongTags] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    (async () => {
+  const load = useCallback(async () => {
+    setItems(null);
+    setFailed(false);
+    setIdx(0);
+    setCorrect(0);
+    setAnswered(false);
+    setWrongTags(new Set());
+    try {
       const u = await getSessionUser();
       setUser(u);
       let qs: Question[];
@@ -51,8 +59,27 @@ export default function QuizRunner({
           shuffled: shuffleChoices(q.choices!, q.answer_idx!),
         })),
       );
-    })();
+    } catch {
+      setFailed(true);
+    }
   }, [subject, typeTag, mode]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Enter → 다음 문제
+  useEffect(() => {
+    if (!answered) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        setIdx((i) => i + 1);
+        setAnswered(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [answered]);
 
   if (needLogin)
     return (
@@ -64,6 +91,20 @@ export default function QuizRunner({
         >
           로그인하러 가기
         </Link>
+      </div>
+    );
+
+  if (failed)
+    return (
+      <div className="card space-y-4 p-10 text-center">
+        <p className="font-bold">문제를 불러오지 못했어요</p>
+        <p className="text-[14px] text-sub">네트워크 상태를 확인하고 다시 시도해주세요.</p>
+        <button
+          onClick={load}
+          className="press rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
+        >
+          다시 시도
+        </button>
       </div>
     );
 
@@ -103,10 +144,28 @@ export default function QuizRunner({
               ? "좋아요, 틀린 문제만 다시 보면 합격권이에요"
               : "기초 유형부터 차근차근 다시 풀어봐요"}
         </p>
+
+        {wrongTags.size > 0 && (
+          <div className="space-y-2">
+            <p className="text-[13px] font-semibold text-muted">틀린 유형 복습하기</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {[...wrongTags].map((tag) => (
+                <Link
+                  key={tag}
+                  href={`/quiz?type_tag=${encodeURIComponent(tag)}`}
+                  className="press rounded-full bg-red-soft px-4 py-2 text-[13px] font-bold text-red"
+                >
+                  {tag}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mx-auto flex w-full max-w-xs flex-col gap-2">
           <button
             className="press rounded-xl bg-blue px-4 py-3.5 font-bold text-white hover:bg-blue-dark"
-            onClick={() => location.reload()}
+            onClick={load}
           >
             다시 풀기
           </button>
@@ -137,7 +196,7 @@ export default function QuizRunner({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-white">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface">
           <div
             className="h-full rounded-full bg-blue transition-[width] duration-500 ease-out"
             style={{ width: `${progress}%` }}
@@ -152,9 +211,11 @@ export default function QuizRunner({
         <QuestionCard
           q={item.q}
           shuffled={item.shuffled}
+          hotkeys
           onAnswer={(chosenIdx, isCorrect) => {
             setAnswered(true);
             if (isCorrect) setCorrect((c) => c + 1);
+            else setWrongTags((s) => new Set(s).add(item.q.type_tag));
             if (user) {
               recordAttempt(user.id, item.q.id, chosenIdx, isCorrect);
             } else {
@@ -176,7 +237,7 @@ export default function QuizRunner({
             setAnswered(false);
           }}
         >
-          다음 문제
+          다음 문제 <span className="ml-1 text-[12px] font-medium opacity-70">Enter</span>
         </button>
       )}
     </div>

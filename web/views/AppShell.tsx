@@ -25,6 +25,14 @@ export default function AppShell({
     return onAuthChange(setUser);
   }, []);
 
+  // 모바일 오버레이: Esc로 닫기
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const subjects = new Map<string, NavTag[]>();
   for (const t of nav) {
     const list = subjects.get(t.subject) ?? [];
@@ -125,8 +133,9 @@ export default function AppShell({
         <Link href="/" className="font-bold">회계 문제은행</Link>
       </div>
       {open && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="메뉴">
+          <button
+            aria-label="메뉴 닫기"
             className="absolute inset-0 bg-black/40"
             onClick={() => setOpen(false)}
           />

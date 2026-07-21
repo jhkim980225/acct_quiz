@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Question } from "@/models/question";
 import ReportButton from "@/views/ReportButton";
 
@@ -12,10 +12,12 @@ export default function QuestionCard({
   q,
   shuffled,
   onAnswer,
+  hotkeys = false,
 }: {
   q: Question;
   shuffled?: { choices: string[]; answerIdx: number };
   onAnswer?: (chosenIdx: number, isCorrect: boolean) => void;
+  hotkeys?: boolean; // 퀴즈 모드: 1~4 키로 보기 선택
 }) {
   const [chosen, setChosen] = useState<number | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -33,6 +35,16 @@ export default function QuestionCard({
     setChosen(i);
     onAnswer?.(i, i === answerIdx);
   }
+
+  useEffect(() => {
+    if (!hotkeys || done) return;
+    const onKey = (e: KeyboardEvent) => {
+      const n = Number(e.key);
+      if (n >= 1 && n <= 4 && !(e.target instanceof HTMLInputElement)) pick(n - 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hotkeys, done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="card p-5 sm:p-6">
@@ -52,7 +64,8 @@ export default function QuestionCard({
           <p className="border-b border-line bg-background px-4 py-2 text-[11px] font-bold tracking-wide text-muted">
             첨부 서식
           </p>
-          <p className="whitespace-pre-wrap break-words bg-surface px-4 py-3 text-[13px] leading-relaxed text-sub">
+          {/* 서식은 행 정렬 유지가 생명 — 줄바꿈 대신 가로 스크롤 */}
+          <p className="overflow-x-auto whitespace-pre bg-surface px-4 py-3 text-[13px] leading-relaxed text-sub">
             {stemForm}
           </p>
         </div>

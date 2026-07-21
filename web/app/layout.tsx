@@ -17,7 +17,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const nav = await listSubjectTags();
+  // 사이드바는 부가 요소 — DB 장애가 사이트 전체를 죽이면 안 됨
+  const nav = await listSubjectTags().catch(() => []);
   return (
     <html lang="ko">
       <body>

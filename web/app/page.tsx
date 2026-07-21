@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { listSubjectTags } from "@/models/question";
+import { listSubjectTags, listMixedTags } from "@/models/question";
 
 export const revalidate = 3600; // 1시간 ISR: 새 문제 적재가 재배포 없이 반영
 
 /** 홈(F4). 사이드바가 색인을 담당하므로 홈은 요약 대시보드. */
 export default async function Home() {
   const tags = await listSubjectTags();
+  const mixed = (await listMixedTags()).filter((t) => t.type_tag !== "미분류");
   const totalQ = tags.reduce((s, t) => s + t.count, 0);
   const subjects = [...new Set(tags.map((t) => t.subject))];
   const top = [...tags].sort((a, b) => b.count - a.count).slice(0, 6);
@@ -52,6 +53,25 @@ export default async function Home() {
             <p className="mt-0.5 text-[12px] text-muted">{s.label}</p>
           </div>
         ))}
+      </section>
+
+      {/* 3과목 통합 믹스: 같은 유형을 전 과목에서 섞어 출제 */}
+      <section className="card rise space-y-3 p-6" style={{ animationDelay: "200ms" }}>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-[15px] font-bold">유형별 통합 풀기</h2>
+          <span className="text-[12px] text-muted">전산회계 1·2급 + 전산세무 2급 믹스</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {mixed.slice(0, 12).map((t) => (
+            <Link
+              key={t.type_tag}
+              href={`/quiz?type_tag=${encodeURIComponent(t.type_tag)}`}
+              className="press rounded-full bg-blue-soft px-4 py-2 text-[13.5px] font-bold text-blue"
+            >
+              {t.type_tag} <span className="font-medium opacity-70">{t.count}</span>
+            </Link>
+          ))}
+        </div>
       </section>
 
       {/* 인기 유형 */}

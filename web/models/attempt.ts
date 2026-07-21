@@ -2,19 +2,23 @@ import { supabase } from "@/lib/supabase";
 import { loadLocal, type LocalAttempt } from "@/models/localAttempts";
 import type { Question } from "@/models/question";
 
-/** 로그인 유저 풀이 기록. RLS로 본인 행만. 실패는 조용히 무시(풀이 흐름 우선). */
+/** 로그인 유저 풀이 기록. 실패(세션 만료 등) 시 localStorage로 폴백해 기록 유실 방지. */
 export async function recordAttempt(
   userId: string,
   questionId: string,
   chosenIdx: number,
   isCorrect: boolean,
 ): Promise<void> {
-  await supabase.from("attempts").insert({
+  const { error } = await supabase.from("attempts").insert({
     user_id: userId,
     question_id: questionId,
     chosen_idx: chosenIdx,
     is_correct: isCorrect,
   });
+  if (error) {
+    const { recordLocal } = await import("@/models/localAttempts");
+    recordLocal({ question_id: questionId, chosen_idx: chosenIdx, is_correct: isCorrect });
+  }
 }
 
 /** 오답노트: 문제별 최신 시도가 오답인 것만, 최신순. */
@@ -22,7 +26,8 @@ export async function getWrongQuestions(): Promise<Question[]> {
   const { data, error } = await supabase
     .from("attempts")
     .select("question_id, is_correct, created_at, questions(*)")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(1000); // ponytail: 최근 1000시도 기준. 헤비유저 생기면 distinct-on RPC로
   if (error) throw error;
   const latest = new Map<string, { is_correct: boolean; q: Question }>();
   for (const a of data as unknown as {
@@ -47,8 +52,19 @@ export async function migrateLocalAttempts(userId: string): Promise<number> {
     is_correct: a.is_correct,
   }));
   const { error } = await supabase.from("attempts").insert(rows);
-  if (!error) localStorage.removeItem("acct_quiz_attempts");
-  return error ? 0 : rows.length;
+  if (!error) {
+    localStorage.removeItem("acct_quiz_attempts");
+    return rows.length;
+  }
+  // 일부 행 FK 위반(삭제된 문제) 시 배치가 통째로 실패 → 한 건씩 넣고 불량 행은 버림.
+  // 어떤 경우든 localStorage는 비워서 방문마다 무한 재시도되는 것을 막는다.
+  let ok = 0;
+  for (const row of rows) {
+    const { error: e } = await supabase.from("attempts").insert(row);
+    if (!e) ok++;
+  }
+  localStorage.removeItem("acct_quiz_attempts");
+  return ok;
 }
 
 /** 문제 신고(F8). 로그인 필요(RLS). */

@@ -7,7 +7,7 @@
   --surface: #ffffff;
   --foreground: #191f28;
   --sub: #4e5968;
-  --muted: #8b95a1;
+  --muted: #6b7684; /* WCAG AA: 흰 배경 4.6:1 (기존 #8b95a1은 3.0:1 미달) */
   --line: #e5e8eb;
   --blue: #3182f6;
   --blue-dark: #1b64da;
@@ -113,6 +113,24 @@ body {
 }
 .fillbar {
   animation: fillbar 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 키보드 포커스 가시화 */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* 모션 민감 사용자 배려 */
+@media (prefers-reduced-motion: reduce) {
+  .rise, .pop, .shake, .fillbar {
+    animation: none;
+  }
+  .press {
+    transition: none;
+  }
 }
 
 ::selection {

@@ -41,6 +41,13 @@ create table if not exists reports (
   created_at   timestamptz default now()
 );
 
+-- (subject, type_tag)별 문항수 집계. PostgREST 1000행 캡 회피용.
+create or replace view question_tag_counts
+with (security_invoker = true) as
+select subject, type_tag, count(*)::int as count
+from questions
+group by subject, type_tag;
+
 create index if not exists questions_subject_tag on questions (subject, type_tag);
 create index if not exists attempts_user_correct on attempts (user_id, is_correct);
 

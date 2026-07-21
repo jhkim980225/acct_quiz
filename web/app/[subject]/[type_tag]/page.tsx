@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getBySubjectTag, listSubjectTags } from "@/models/question";
 import { shuffleChoices } from "@/models/shuffle";
 import QuestionCard from "@/views/QuestionCard";
 
 export const revalidate = 3600; // 1시간 ISR
-export const dynamicParams = false; // 새 type_tag는 재배포 시 생성
+export const dynamicParams = true; // 새 type_tag도 재배포 없이 첫 요청 시 생성
 
 type Params = Promise<{ subject: string; type_tag: string }>;
 
@@ -30,6 +31,7 @@ export default async function TypeTagPage({ params }: { params: Params }) {
   const s = decodeURIComponent(subject);
   const t = decodeURIComponent(type_tag);
   const questions = await getBySubjectTag(s, t);
+  if (questions.length === 0) notFound(); // 존재하지 않는 조합 URL 방어
 
   // 관련 유형 내부링크(F10): 같은 과목의 다른 유형 상위 6개
   const related = (await listSubjectTags())
