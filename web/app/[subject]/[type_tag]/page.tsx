@@ -61,14 +61,29 @@ export default async function TypeTagPage({ params }: { params: Params }) {
         </Link>
       </header>
 
-      {/* 이론(4지선다)과 실무(분개·결산)는 성격이 달라 섹션 분리 */}
-      {(["이론", "실무분개", "결산"] as const).map((cat) => {
+      {/* 이론은 나열하지 않음 — 퀴즈에서 풀도록 유도. 페이지엔 실무(분개·결산)만. */}
+      {questions.some((q) => q.category === "이론") && (
+        <div className="card flex flex-wrap items-center justify-between gap-3 p-5">
+          <p className="text-[14px] font-semibold">
+            이론 {questions.filter((q) => q.category === "이론").length}문항은
+            <span className="text-sub"> 퀴즈에서 랜덤 출제돼요</span>
+          </p>
+          <Link
+            href={`/quiz?subject=${encodeURIComponent(s)}&type_tag=${encodeURIComponent(t)}`}
+            className="press shrink-0 rounded-xl bg-blue-soft px-4 py-2.5 text-[13px] font-bold text-blue"
+          >
+            이론 풀러 가기
+          </Link>
+        </div>
+      )}
+
+      {(["실무분개", "결산"] as const).map((cat) => {
         const list = questions.filter((q) => q.category === cat);
         if (list.length === 0) return null;
         return (
           <section key={cat} className="space-y-4">
             <h2 className="flex items-baseline gap-2 border-b border-line pb-2 text-lg font-bold">
-              {cat === "이론" ? "이론 (4지선다)" : cat === "실무분개" ? "실무 분개" : "결산"}
+              {cat === "실무분개" ? "실무 분개" : "결산"}
               <span className="text-[13px] font-semibold text-muted">
                 {list.length}문항
               </span>
