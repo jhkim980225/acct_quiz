@@ -46,7 +46,12 @@ export default async function TypeTagPage({ params }: { params: Params }) {
         </p>
         <h1 className="text-2xl font-bold tracking-tight">{t}</h1>
         <p className="text-[14px] text-sub">
-          {questions.length}문항 · 보기를 누르면 바로 채점돼요
+          {(["이론", "실무분개", "결산"] as const)
+            .map((c) => ({ c, n: questions.filter((q) => q.category === c).length }))
+            .filter((x) => x.n > 0)
+            .map((x) => `${x.c} ${x.n}`)
+            .join(" · ")}
+          문항 · 보기를 누르면 바로 채점돼요
         </p>
         <Link
           href={`/quiz?subject=${encodeURIComponent(s)}&type_tag=${encodeURIComponent(t)}`}
@@ -56,24 +61,37 @@ export default async function TypeTagPage({ params }: { params: Params }) {
         </Link>
       </header>
 
-      <div className="space-y-4">
-        {questions.map((q, i) => (
-          <div
-            key={q.id}
-            className="rise"
-            style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
-          >
-            <QuestionCard
-              q={q}
-              shuffled={
-                q.choices && q.answer_idx !== null
-                  ? shuffleChoices(q.choices, q.answer_idx, q.id) // 빌드 타임 고정 셔플(F11)
-                  : undefined
-              }
-            />
-          </div>
-        ))}
-      </div>
+      {/* 이론(4지선다)과 실무(분개·결산)는 성격이 달라 섹션 분리 */}
+      {(["이론", "실무분개", "결산"] as const).map((cat) => {
+        const list = questions.filter((q) => q.category === cat);
+        if (list.length === 0) return null;
+        return (
+          <section key={cat} className="space-y-4">
+            <h2 className="flex items-baseline gap-2 border-b border-line pb-2 text-lg font-bold">
+              {cat === "이론" ? "이론 (4지선다)" : cat === "실무분개" ? "실무 분개" : "결산"}
+              <span className="text-[13px] font-semibold text-muted">
+                {list.length}문항
+              </span>
+            </h2>
+            {list.map((q, i) => (
+              <div
+                key={q.id}
+                className="rise"
+                style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+              >
+                <QuestionCard
+                  q={q}
+                  shuffled={
+                    q.choices && q.answer_idx !== null
+                      ? shuffleChoices(q.choices, q.answer_idx, q.id) // 빌드 타임 고정 셔플(F11)
+                      : undefined
+                  }
+                />
+              </div>
+            ))}
+          </section>
+        );
+      })}
 
       {related.length > 0 && (
         <nav className="card p-5">
