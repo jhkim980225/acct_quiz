@@ -13,11 +13,13 @@ export default function QuestionCard({
   shuffled,
   onAnswer,
   hotkeys = false,
+  bare = false,
 }: {
   q: Question;
   shuffled?: { choices: string[]; answerIdx: number };
   onAnswer?: (chosenIdx: number, isCorrect: boolean) => void;
   hotkeys?: boolean; // 퀴즈 모드: 1~4 키로 보기 선택
+  bare?: boolean; // 아코디언 안에서 카드 스타일 없이 렌더
 }) {
   const [chosen, setChosen] = useState<number | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -47,7 +49,7 @@ export default function QuestionCard({
   }, [hotkeys, done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="card p-5 sm:p-6">
+    <div className={bare ? "p-5 sm:p-6" : "card p-5 sm:p-6"}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <p className="min-w-0 whitespace-pre-wrap break-words text-[15px] font-semibold leading-relaxed">
           {stemMain}

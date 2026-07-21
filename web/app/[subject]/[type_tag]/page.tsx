@@ -73,21 +73,42 @@ export default async function TypeTagPage({ params }: { params: Params }) {
                 {list.length}문항
               </span>
             </h2>
+            {/* 문제는 접힌 목록으로 — 클릭 시 펼쳐서 풀기 (stem은 HTML에 있어 색인 유지) */}
             {list.map((q, i) => (
-              <div
+              <details
                 key={q.id}
-                className="rise"
-                style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+                className="card rise group overflow-hidden"
+                style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
               >
-                <QuestionCard
-                  q={q}
-                  shuffled={
-                    q.choices && q.answer_idx !== null
-                      ? shuffleChoices(q.choices, q.answer_idx, q.id) // 빌드 타임 고정 셔플(F11)
-                      : undefined
-                  }
-                />
-              </div>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
+                    <span className="mr-2 text-muted">Q{i + 1}.</span>
+                    {q.stem.split("\n")[0]}
+                  </span>
+                  {q.source && (
+                    <span className="hidden shrink-0 rounded-full bg-background px-2.5 py-1 text-[11px] font-medium text-muted sm:inline">
+                      {q.source}
+                    </span>
+                  )}
+                  <svg
+                    width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+                    className="shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </summary>
+                <div className="border-t border-line">
+                  <QuestionCard
+                    bare
+                    q={q}
+                    shuffled={
+                      q.choices && q.answer_idx !== null
+                        ? shuffleChoices(q.choices, q.answer_idx, q.id) // 빌드 타임 고정 셔플(F11)
+                        : undefined
+                    }
+                  />
+                </div>
+              </details>
             ))}
           </section>
         );
