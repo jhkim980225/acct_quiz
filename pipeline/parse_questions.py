@@ -246,6 +246,31 @@ def parse_answer_pdf(pdf_path: Path) -> tuple[list[dict], list[dict]]:
 # 실무 섹션: 분개(일반전표입력)·결산만 추출. 프로그램 조작형(기초정보·매입매출
 # 전표·오류수정·조회)은 제외 — 웹에서 재현 불가/무의미.
 # ---------------------------------------------------------------------------
+_SECTION_CHARS = set("이론시험실무형AB")
+
+
+def _visual_lines(page) -> list[str]:
+    """단어를 y좌표로 줄 단위 재구성. 어음·세금계산서 같은 서식(표)이
+    읽기 순서가 아니라 눈에 보이는 행 순서로 나온다."""
+    words = sorted(page.get_text("words"), key=lambda w: (w[1], w[0]))
+    lines: list[str] = []
+    row: list = []
+    row_y = None
+    for w in words:
+        # 좌측 세로 섹션 라벨(이/론/시/험/실/무) 제거: x<50 단일 문자
+        if w[0] < 50 and w[4] in _SECTION_CHARS and len(w[4]) == 1:
+            continue
+        if row_y is None or abs(w[1] - row_y) <= 3:
+            row.append(w)
+            row_y = w[1] if row_y is None else row_y
+        else:
+            lines.append(" ".join(x[4] for x in sorted(row, key=lambda x: x[0])))
+            row, row_y = [w], w[1]
+    if row:
+        lines.append(" ".join(x[4] for x in sorted(row, key=lambda x: x[0])))
+    return lines
+
+
 def parse_practical(pdf_path: Path) -> list[dict]:
     import fitz
 
@@ -254,13 +279,13 @@ def parse_practical(pdf_path: Path) -> list[dict]:
     subject = m.group(2) if m else "미상"
 
     doc = fitz.open(pdf_path)
-    full = "\n".join(page.get_text() for page in doc)
-    sec = re.search(r"실\s*\n무\s*\n시\s*\n험", full)
-    if not sec:
-        return []
-    prac = full[sec.start():]
-    lines = [ln.strip() for ln in prac.split("\n")]
-    prac = "\n".join(ln for ln in lines if ln and not _JUNK_LINE.match(ln))
+    all_lines: list[str] = []
+    for page in doc:
+        all_lines.extend(_visual_lines(page))
+    # 문제N 헤더 키워드로만 골라내므로 섹션 분리 불필요(이론엔 문제N 없음)
+    prac = "\n".join(
+        ln.strip() for ln in all_lines if ln.strip() and not _JUNK_LINE.match(ln.strip())
+    )
 
     # 문제N 블록 분리 후 헤더 키워드로 포함 여부 결정.
     heads = list(re.finditer(r"^문제(\d+)", prac, re.MULTILINE))
@@ -293,8 +318,9 @@ def parse_practical(pdf_path: Path) -> list[dict]:
                 (k for k, ln in enumerate(ans_lines) if ln.startswith("ㆍ")),
                 len(ans_lines),
             )
-            answer_text = " ".join(ln.strip() for ln in ans_lines[:exp_start]).strip()
-            # 표 레이아웃 잔재 정리: '12,540,000 원 원' → '12,540,000원'
+            # 줄 구조 보존(차/대 분개 행 정렬). 시각 줄 기준이라 그대로 읽힌다.
+            answer_text = "\n".join(ln.strip() for ln in ans_lines[:exp_start]).strip()
+            # 표 레이아웃 잔재 정리: '12,540,000 원' → '12,540,000원'
             answer_text = re.sub(r"(\d)\s+원", r"\1원", answer_text)
             answer_text = re.sub(r"원(\s+원)+", "원", answer_text)
             explanation = "\n".join(ans_lines[exp_start:]).strip() or None

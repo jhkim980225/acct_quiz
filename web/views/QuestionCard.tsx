@@ -33,7 +33,7 @@ export default function QuestionCard({
   return (
     <div className="card p-5 sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
-        <p className="whitespace-pre-wrap text-[15px] font-semibold leading-relaxed">
+        <p className="min-w-0 whitespace-pre-wrap break-words text-[15px] font-semibold leading-relaxed">
           {q.stem}
         </p>
         {q.source && (
@@ -49,7 +49,7 @@ export default function QuestionCard({
             const isAnswer = done && i === answerIdx;
             const isWrongPick = done && i === chosen && i !== answerIdx;
             let cls =
-              "press w-full rounded-xl border px-4 py-3 text-left text-[14px] leading-snug ";
+              "press w-full rounded-xl border px-4 py-3 text-left text-[14px] leading-snug break-words ";
             if (isAnswer) cls += "pop border-green bg-green-soft font-bold text-green";
             else if (isWrongPick) cls += "shake border-red bg-red-soft font-bold text-red";
             else if (done) cls += "border-transparent bg-background text-muted";
@@ -75,7 +75,7 @@ export default function QuestionCard({
             {showAnswer ? "정답 접기" : "정답 보기"}
           </button>
           {showAnswer && (
-            <p className="pop mt-3 whitespace-pre-wrap rounded-xl bg-background p-4 text-[14px] leading-relaxed">
+            <p className="pop mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-background p-4 text-[13.5px] leading-relaxed">
               {q.answer_text}
             </p>
           )}
@@ -93,7 +93,7 @@ export default function QuestionCard({
       {(done || (showAnswer && q.answer_text)) && q.explanation && (
         <div className="rise mt-3 rounded-xl bg-amber-soft p-4 text-[13.5px] leading-relaxed text-sub">
           <span className="mb-1 block font-bold text-foreground">해설</span>
-          <span className="whitespace-pre-wrap">{q.explanation}</span>
+          <span className="whitespace-pre-wrap break-words">{q.explanation}</span>
         </div>
       )}
     </div>

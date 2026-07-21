@@ -32,7 +32,7 @@ export default async function Home() {
       </section>
 
       {/* 통계 */}
-      <section className="grid grid-cols-3 gap-3">
+      <section className="grid grid-cols-3 gap-2 sm:gap-3">
         {[
           { label: "기출 문제", value: `${totalQ}`, unit: "문" },
           { label: "유형", value: `${tags.length}`, unit: "개" },
@@ -40,7 +40,7 @@ export default async function Home() {
         ].map((s, i) => (
           <div
             key={s.label}
-            className="card rise p-4 text-center"
+            className="card rise p-3 text-center sm:p-4"
             style={{ animationDelay: `${80 + i * 60}ms` }}
           >
             <p className="text-xl font-bold">
