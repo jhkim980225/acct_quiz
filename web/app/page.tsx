@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listSubjectTags, listMixedTags } from "@/models/question";
+import { listSubjectTags, listMixedTags, AREA_ORDER } from "@/models/question";
 
 export const revalidate = 3600; // 1시간 ISR: 새 문제 적재가 재배포 없이 반영
 
@@ -55,23 +55,41 @@ export default async function Home() {
         ))}
       </section>
 
-      {/* 3과목 통합 믹스: 같은 유형을 전 과목에서 섞어 출제 */}
-      <section className="card rise space-y-3 p-6" style={{ animationDelay: "200ms" }}>
+      {/* 3과목 통합 믹스: 영역(재무/원가/부가세/소득세)별로 같은 유형을 전 과목에서 섞어 출제 */}
+      <section className="card rise space-y-4 p-6" style={{ animationDelay: "200ms" }}>
         <div className="flex items-baseline justify-between">
-          <h2 className="text-[15px] font-bold">유형별 통합 풀기</h2>
+          <h2 className="text-[15px] font-bold">영역별 통합 풀기</h2>
           <span className="text-[12px] text-muted">전산회계 1·2급 + 전산세무 2급 믹스</span>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {mixed.slice(0, 12).map((t) => (
-            <Link
-              key={t.type_tag}
-              href={`/quiz?type_tag=${encodeURIComponent(t.type_tag)}`}
-              className="press rounded-full bg-blue-soft px-4 py-2 text-[13.5px] font-bold text-blue"
-            >
-              {t.type_tag} <span className="font-medium opacity-70">{t.count}</span>
-            </Link>
-          ))}
-        </div>
+        {AREA_ORDER.map((area) => {
+          const items = mixed.filter((t) => t.area === area);
+          if (items.length === 0) return null;
+          const total = items.reduce((s, t) => s + t.count, 0);
+          return (
+            <div key={area} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[13px] font-bold text-sub">{area}</p>
+                <Link
+                  href={`/quiz?area=${encodeURIComponent(area)}`}
+                  className="press rounded-lg bg-background px-3 py-1 text-[12px] font-bold text-blue hover:bg-blue-soft"
+                >
+                  {area} 전체 풀기 {total}
+                </Link>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {items.slice(0, 8).map((t) => (
+                  <Link
+                    key={t.type_tag}
+                    href={`/quiz?type_tag=${encodeURIComponent(t.type_tag)}`}
+                    className="press rounded-full bg-blue-soft px-4 py-2 text-[13.5px] font-bold text-blue"
+                  >
+                    {t.type_tag} <span className="font-medium opacity-70">{t.count}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </section>
 
       {/* 인기 유형 */}

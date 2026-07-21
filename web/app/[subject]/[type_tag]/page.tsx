@@ -41,7 +41,9 @@ export default async function TypeTagPage({ params }: { params: Params }) {
   return (
     <div className="space-y-5">
       <header className="card rise space-y-3 p-6">
-        <p className="text-[13px] font-semibold text-muted">{s}</p>
+        <p className="text-[13px] font-semibold text-muted">
+          {s} · {questions[0].area}
+        </p>
         <h1 className="text-2xl font-bold tracking-tight">{t}</h1>
         <p className="text-[14px] text-sub">
           {questions.length}문항 · 보기를 누르면 바로 채점돼요

@@ -52,7 +52,7 @@ def main() -> None:
         print(f"배치 내 중복 stem {len(rows) - len(deduped)}건 제거")
     rows = deduped
     # 테이블 컬럼만, 전 행 동일 키로 (PostgREST 일괄 insert 요건)
-    cols = ("subject", "category", "type_tag", "stem", "choices",
+    cols = ("subject", "category", "type_tag", "area", "stem", "choices",
             "answer_idx", "answer_text", "explanation", "source")
     payload = [{k: r.get(k) for k in cols} for r in rows]
 

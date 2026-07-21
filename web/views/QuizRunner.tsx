@@ -19,10 +19,12 @@ type Item = { q: Question; shuffled: { choices: string[]; answerIdx: number } };
 export default function QuizRunner({
   subject,
   typeTag,
+  area,
   mode,
 }: {
   subject?: string;
   typeTag?: string;
+  area?: string;
   mode?: string;
 }) {
   const [user, setUser] = useState<User | null>(null);
@@ -51,7 +53,7 @@ export default function QuizRunner({
         const wrong = await getWrongQuestions();
         qs = await getQuestionsByIds(wrong.map((q) => q.id));
       } else {
-        qs = await getQuizSet({ subject, typeTag, limit: 10 });
+        qs = await getQuizSet({ subject, typeTag, area, limit: 10 });
       }
       setItems(
         qs.map((q) => ({
@@ -62,7 +64,7 @@ export default function QuizRunner({
     } catch {
       setFailed(true);
     }
-  }, [subject, typeTag, mode]);
+  }, [subject, typeTag, area, mode]);
 
   useEffect(() => {
     load();

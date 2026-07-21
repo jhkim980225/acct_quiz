@@ -7,6 +7,7 @@ create table if not exists questions (
   subject      text not null,                  -- 전산회계1급 | 전산회계2급 | 전산세무2급
   category     text not null,                  -- 이론 | 실무분개 | 결산
   type_tag     text not null default '미분류',
+  area         text not null default '재무회계',  -- 재무회계 | 원가회계 | 부가가치세 | 소득세
   stem         text not null unique,           -- 중복 적재 방지. upsert 충돌 키
   choices      jsonb,                          -- 이론: ["보기1",...4개]. 실무: null
   answer_idx   int check (answer_idx between 0 and 3),  -- 실무: null
@@ -44,9 +45,9 @@ create table if not exists reports (
 -- (subject, type_tag)별 문항수 집계. PostgREST 1000행 캡 회피용.
 create or replace view question_tag_counts
 with (security_invoker = true) as
-select subject, type_tag, count(*)::int as count
+select subject, area, type_tag, count(*)::int as count
 from questions
-group by subject, type_tag;
+group by subject, area, type_tag;
 
 create index if not exists questions_subject_tag on questions (subject, type_tag);
 create index if not exists attempts_user_correct on attempts (user_id, is_correct);

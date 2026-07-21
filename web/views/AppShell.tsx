@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { getSessionUser, onAuthChange, signOut } from "@/models/auth";
 
-export type NavTag = { subject: string; type_tag: string; count: number };
+export type NavTag = { subject: string; area: string; type_tag: string; count: number };
 
 /** 좌측 사이드바 셸. 데스크톱 고정, 모바일은 오버레이. */
 export default function AppShell({
@@ -183,30 +183,41 @@ function SubjectGroup({
         className="grid transition-[grid-template-rows] duration-300 ease-out"
         style={{ gridTemplateRows: collapsed ? "0fr" : "1fr" }}
       >
-        <ul className="overflow-hidden">
-          {list.map((t) => {
-            const href = `/${encodeURIComponent(subject)}/${encodeURIComponent(t.type_tag)}`;
-            const active = pathname === href;
-            return (
-              <li key={t.type_tag}>
-                <Link
-                  href={href}
-                  onClick={onNavigate}
-                  className={`press flex items-center justify-between rounded-lg px-3 py-2 text-[14px] ${
-                    active
-                      ? "bg-blue-soft font-bold text-blue"
-                      : "text-sub hover:bg-background"
-                  }`}
-                >
-                  {t.type_tag}
-                  <span className={`text-xs ${active ? "text-blue" : "text-muted"}`}>
-                    {t.count}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="overflow-hidden">
+          {[...new Set(list.map((t) => t.area))].map((area) => (
+            <div key={area}>
+              <p className="mt-1 px-3 py-1 text-[11px] font-bold tracking-wide text-blue">
+                {area}
+              </p>
+              <ul>
+                {list
+                  .filter((t) => t.area === area)
+                  .map((t) => {
+                    const href = `/${encodeURIComponent(subject)}/${encodeURIComponent(t.type_tag)}`;
+                    const active = pathname === href;
+                    return (
+                      <li key={t.type_tag}>
+                        <Link
+                          href={href}
+                          onClick={onNavigate}
+                          className={`press flex items-center justify-between rounded-lg px-3 py-2 text-[14px] ${
+                            active
+                              ? "bg-blue-soft font-bold text-blue"
+                              : "text-sub hover:bg-background"
+                          }`}
+                        >
+                          {t.type_tag}
+                          <span className={`text-xs ${active ? "text-blue" : "text-muted"}`}>
+                            {t.count}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

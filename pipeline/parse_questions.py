@@ -50,9 +50,21 @@ TYPE_RULES: list[tuple[str, str]] = [
     ("재무상태표", r"재무상태표"),
     ("손익계산서", r"손익계산서"),
     ("수익비용", r"수익의 인식|수익인식|발생주의|비용의 인식|수익비용"),
-    ("원가", r"원가"),
+    ("원가", r"원가|노무비|제조간접비|가공비|공손|제조지시서|부문별|보조부문|당기총제조|당기제품제조"),
     ("회계원칙", r"회계의 순환|회계정보|재무제표|회계처리의 기본|회계상 거래"),
 ]
+
+# 시험 영역(과목 내 대분류). type_tag의 함수 — 재무회계가 기본.
+AREA_BY_TAG = {
+    "원가": "원가회계",
+    "부가세": "부가가치세",
+    "소득세": "소득세",
+    "원천징수": "소득세",
+}
+
+
+def area_of(tag: str) -> str:
+    return AREA_BY_TAG.get(tag, "재무회계")
 
 
 def classify(stem: str) -> str:
@@ -253,11 +265,13 @@ def parse_answer_pdf(pdf_path: Path) -> tuple[list[dict], list[dict]]:
         if len(accepted) > 1:
             note = "복수정답 인정: " + ",".join(GLYPHS[i] for i in accepted)
             q["explanation"] = ((q["explanation"] or "") + f" [{note}]").strip()
+        tag = classify(q["stem"])
         ok.append(
             {
                 "subject": subject,
                 "category": "이론",
-                "type_tag": classify(q["stem"]),
+                "type_tag": tag,
+                "area": area_of(tag),
                 "stem": q["stem"],
                 "choices": q["choices"],
                 "answer_idx": q["answer_idx"],
@@ -375,7 +389,8 @@ def parse_practical(pdf_path: Path) -> list[dict]:
                     "subject": subject,
                     "category": category,
                     # 분개는 계정과목이 답에 있어 stem+답으로 분류(예: 단기매매증권 처분)
-                    "type_tag": classify(stem + " " + answer_text),
+                    "type_tag": (tag := classify(stem + " " + answer_text)),
+                    "area": area_of(tag),
                     "stem": stem,
                     "choices": None,       # 4지선다 보기 생성은 별도 단계
                     "answer_idx": None,
@@ -445,7 +460,8 @@ def run_retry() -> None:
             {
                 "subject": subject,
                 "category": "이론",
-                "type_tag": classify(q["stem"]),
+                "type_tag": (tag := classify(q["stem"])),
+                "area": area_of(tag),
                 "stem": q["stem"],
                 "choices": q["choices"],
                 "answer_idx": q["answer_idx"],

@@ -5,6 +5,7 @@ export type Question = {
   subject: string;
   category: "이론" | "실무분개" | "결산";
   type_tag: string;
+  area: string; // 재무회계 | 원가회계 | 부가가치세 | 소득세
   stem: string;
   choices: string[] | null; // 이론만 4개, 실무는 null
   answer_idx: number | null;
@@ -14,7 +15,7 @@ export type Question = {
 };
 
 const COLS =
-  "id,subject,category,type_tag,stem,choices,answer_idx,answer_text,explanation,source";
+  "id,subject,category,type_tag,area,stem,choices,answer_idx,answer_text,explanation,source";
 
 /** Supabase 일시 장애(522 등)로 빌드가 죽지 않게 3회 재시도. */
 async function withRetry<T>(fn: () => Promise<{ data: T; error: unknown }>): Promise<T> {
@@ -32,33 +33,44 @@ async function withRetry<T>(fn: () => Promise<{ data: T; error: unknown }>): Pro
   throw lastError;
 }
 
-export type TagCount = { subject: string; type_tag: string; count: number };
+export type TagCount = { subject: string; area: string; type_tag: string; count: number };
 
-/** (subject, type_tag) 전 조합 + 문항수. DB 뷰 집계라 1000행 캡 무관. */
+/** 시험 영역 표시 순서 */
+export const AREA_ORDER = ["재무회계", "원가회계", "부가가치세", "소득세"];
+const areaRank = (a: string) => {
+  const i = AREA_ORDER.indexOf(a);
+  return i === -1 ? AREA_ORDER.length : i;
+};
+
+/** (subject, area, type_tag) 전 조합 + 문항수. DB 뷰 집계라 1000행 캡 무관. */
 export async function listSubjectTags(): Promise<TagCount[]> {
   const data = await withRetry(async () =>
-    supabase.from("question_tag_counts").select("subject,type_tag,count"),
+    supabase.from("question_tag_counts").select("subject,area,type_tag,count"),
   );
-  return (data as TagCount[]).sort((a, b) =>
-    a.subject === b.subject
-      ? b.count - a.count
-      : a.subject.localeCompare(b.subject),
-  );
+  return (data as TagCount[]).sort((a, b) => {
+    if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
+    if (a.area !== b.area) return areaRank(a.area) - areaRank(b.area);
+    return b.count - a.count;
+  });
 }
 
-/** 과목 무관 유형별 합계(통합 믹스 모드용). */
-export async function listMixedTags(): Promise<{ type_tag: string; count: number; subjects: number }[]> {
+/** 과목 무관 유형별 합계(통합 믹스 모드용). 영역순 → 문항수순. */
+export async function listMixedTags(): Promise<
+  { type_tag: string; area: string; count: number; subjects: number }[]
+> {
   const tags = await listSubjectTags();
-  const map = new Map<string, { count: number; subjects: number }>();
+  const map = new Map<string, { area: string; count: number; subjects: number }>();
   for (const t of tags) {
-    const e = map.get(t.type_tag) ?? { count: 0, subjects: 0 };
+    const e = map.get(t.type_tag) ?? { area: t.area, count: 0, subjects: 0 };
     e.count += t.count;
     e.subjects += 1;
     map.set(t.type_tag, e);
   }
   return [...map.entries()]
     .map(([type_tag, v]) => ({ type_tag, ...v }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) =>
+      a.area !== b.area ? areaRank(a.area) - areaRank(b.area) : b.count - a.count,
+    );
 }
 
 /** 유형 페이지: 해당 조합 전체 문제. */
@@ -101,6 +113,7 @@ export async function getQuestionsByIds(ids: string[]): Promise<Question[]> {
 export async function getQuizSet(opts?: {
   subject?: string;
   typeTag?: string;
+  area?: string;
   limit?: number;
 }): Promise<Question[]> {
   const data = await withRetry(async () => {
@@ -112,6 +125,7 @@ export async function getQuizSet(opts?: {
       .limit(1000); // ponytail: 전량 fetch 후 클라 셔플. 수천 문항 넘으면 RPC 샘플링으로
     if (opts?.subject) q = q.eq("subject", opts.subject);
     if (opts?.typeTag) q = q.eq("type_tag", opts.typeTag);
+    if (opts?.area) q = q.eq("area", opts.area);
     return q;
   });
   const all = data as Question[];
