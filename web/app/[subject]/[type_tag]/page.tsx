@@ -4,8 +4,8 @@ import { getBySubjectTag, listSubjectTags } from "@/models/question";
 import { shuffleChoices } from "@/models/shuffle";
 import QuestionCard from "@/views/QuestionCard";
 
-export const dynamic = "force-static";
-export const dynamicParams = false;
+export const revalidate = 3600; // 1시간 ISR
+export const dynamicParams = false; // 새 type_tag는 재배포 시 생성
 
 type Params = Promise<{ subject: string; type_tag: string }>;
 

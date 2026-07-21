@@ -19,6 +19,9 @@ export default function QuestionCard({
   const [chosen, setChosen] = useState<number | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
 
+  // 실무 문제: "[[서식]]" 마커 뒤는 어음·계산서 등 첨부 서식 → 박스로 구분 렌더
+  const [stemMain, stemForm] = q.stem.split("\n[[서식]]\n");
+
   const choices = shuffled?.choices ?? q.choices;
   const answerIdx = shuffled?.answerIdx ?? q.answer_idx;
   const done = chosen !== null;
@@ -34,7 +37,7 @@ export default function QuestionCard({
     <div className="card p-5 sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
         <p className="min-w-0 whitespace-pre-wrap break-words text-[15px] font-semibold leading-relaxed">
-          {q.stem}
+          {stemMain}
         </p>
         {q.source && (
           <span className="shrink-0 rounded-full bg-background px-2.5 py-1 text-[11px] font-medium text-muted">
@@ -42,6 +45,17 @@ export default function QuestionCard({
           </span>
         )}
       </div>
+
+      {stemForm && (
+        <div className="mb-4 overflow-hidden rounded-xl border border-line">
+          <p className="border-b border-line bg-background px-4 py-2 text-[11px] font-bold tracking-wide text-muted">
+            첨부 서식
+          </p>
+          <p className="whitespace-pre-wrap break-words bg-surface px-4 py-3 text-[13px] leading-relaxed text-sub">
+            {stemForm}
+          </p>
+        </div>
+      )}
 
       {choices && answerIdx !== null && (
         <ol className="space-y-2">

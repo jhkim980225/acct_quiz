@@ -311,7 +311,14 @@ def parse_practical(pdf_path: Path) -> list[dict]:
             ans = re.search(r"\[답\]", body)
             if not ans:
                 continue
-            stem = re.sub(r"\s*\(\d+점\)\s*$", "", body[: ans.start()].strip())
+            stem = body[: ans.start()].strip()
+            # 지시문 뒤에 어음·계산서 등 서식이 붙는 경우: (N점) 뒤 잔여 텍스트를
+            # [[서식]] 마커로 분리해 웹에서 박스로 렌더링한다.
+            pm = re.search(r"\s*\((\d+)점\)", stem)
+            if pm:
+                instruction = stem[: pm.start()].strip()
+                form = stem[pm.end():].strip()
+                stem = f"{instruction}\n[[서식]]\n{form}" if form else instruction
             answer_body = body[ans.end():].strip()
             ans_lines = answer_body.split("\n")
             exp_start = next(

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { listSubjectTags } from "@/models/question";
 
-export const dynamic = "force-static";
+export const revalidate = 3600; // 1시간 ISR: 새 문제 적재가 재배포 없이 반영
 
 /** 홈(F4). 사이드바가 색인을 담당하므로 홈은 요약 대시보드. */
 export default async function Home() {
