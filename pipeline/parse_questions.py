@@ -726,6 +726,13 @@ def _write(questions: list[dict], failed: list[dict]) -> None:
         tags[q["type_tag"]] = tags.get(q["type_tag"], 0) + 1
     print(f"\n합계: 성공 {len(questions)}, 실패 {len(failed)}")
     print("type_tag 분포:", dict(sorted(tags.items(), key=lambda x: -x[1])))
+    # QA 게이트: 깨진 문항이 있으면 비정상 종료 → 적재 전에 잡힌다
+    from qa_gate import report as qa_report, validate as qa_validate
+
+    vio = qa_validate(questions)
+    qa_report(vio, len(questions))
+    if vio:
+        raise SystemExit(2)
 
 
 def selftest() -> None:

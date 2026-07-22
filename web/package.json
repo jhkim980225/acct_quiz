@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node tests/shuffle.test.ts"
+    "test": "node tests/shuffle.test.ts",
+    "perf": "node tests/perf.mjs",
+    "soak": "node tests/soak.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",

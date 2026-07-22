@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import requests
@@ -41,6 +42,14 @@ def main() -> None:
         raise SystemExit(".env 의 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 확인.")
 
     rows = json.loads(OUT.read_text(encoding="utf-8"))
+    # QA 게이트: 파싱을 건너뛰고 questions.json 을 직접 만졌어도 깨진 건 못 올라간다
+    from qa_gate import report as qa_report, validate as qa_validate
+
+    vio = qa_validate(rows)
+    if vio:
+        qa_report(vio, len(rows))
+        if "--force" not in sys.argv:
+            raise SystemExit("QA 위반 — 업로드 거부. 무시하려면 --force")
     # 회차 간 동일 문제 재출제 → 배치 내 중복 stem 제거(첫 항목 유지)
     seen: set[str] = set()
     deduped = []
