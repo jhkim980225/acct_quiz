@@ -8,7 +8,7 @@ import {
   type Question,
 } from "@/models/question";
 import { globalAvgCorrect, MIN_ATTEMPTS } from "@/models/stats";
-import { getTypeNote } from "@/models/typeNotes";
+import { getTypeNote, PRACTICE_TIPS } from "@/models/typeNotes";
 import { aggregateWrongStats } from "@/lib/wrongStats.server";
 import { shuffleChoices } from "@/models/shuffle";
 import QuestionCard from "@/views/QuestionCard";
@@ -125,11 +125,25 @@ function practiceChoices(
   return shuffleChoices([q.answer_text, ...distractors], 0, `${q.id}#c`);
 }
 
-/** 실무 파트 페이지: 과목별 분개/결산 전용. 유형 페이지와 분리. */
+/** 실무 파트 페이지: 과목별 분개/결산 전용. 키워드(type_tag)별 그룹 + 분개 요령. */
 async function PracticePage({ subject, slug }: { subject: string; slug: keyof typeof PRACTICE }) {
   const questions = await getByCategory(subject, PRACTICE[slug]);
   if (questions.length === 0) notFound();
   const other = slug === "분개" ? "결산" : "분개";
+
+  // 키워드별 그룹: 문항 많은 순, 미분류(기타)는 맨 뒤
+  const groups = new Map<string, Question[]>();
+  for (const q of questions) {
+    const list = groups.get(q.type_tag) ?? [];
+    list.push(q);
+    groups.set(q.type_tag, list);
+  }
+  const ordered = [...groups.entries()].sort((a, b) => {
+    if (a[0] === "미분류") return 1;
+    if (b[0] === "미분류") return -1;
+    return b[1].length - a[1].length;
+  });
+  const label = (tag: string) => (tag === "미분류" ? "기타" : tag);
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -139,9 +153,21 @@ async function PracticePage({ subject, slug }: { subject: string; slug: keyof ty
           {slug === "분개" ? "실무 분개" : "결산"}
         </h1>
         <p className="text-[14px] text-sub">
-          {questions.length}문항 · 문제를 누르면 펼쳐져요. 보기 중 올바른 분개를
-          고르면 바로 채점돼요.
+          {questions.length}문항 · 키워드 {ordered.length}개 · 보기 중 올바른
+          분개를 고르면 바로 채점돼요.
         </p>
+        {/* 키워드 내비: 앵커 점프 */}
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {ordered.map(([tag, list]) => (
+            <a
+              key={tag}
+              href={`#${encodeURIComponent(tag)}`}
+              className="press rounded-full bg-background px-3 py-1.5 text-[12.5px] font-bold text-sub hover:bg-blue-soft hover:text-blue"
+            >
+              {label(tag)} <span className="font-medium text-muted">{list.length}</span>
+            </a>
+          ))}
+        </div>
         <div className="pt-1">
           <Link
             href={`/${encodeURIComponent(subject)}/${other}`}
@@ -151,9 +177,28 @@ async function PracticePage({ subject, slug }: { subject: string; slug: keyof ty
           </Link>
         </div>
       </header>
-      {questions.map((q, i) => (
-        <QuestionRow key={q.id} q={q} index={i} shuffled={practiceChoices(q, questions)} />
-      ))}
+
+      {ordered.map(([tag, list]) => {
+        const tip = PRACTICE_TIPS[tag];
+        return (
+          <section key={tag} id={encodeURIComponent(tag)} className="scroll-mt-20 space-y-3">
+            <div className="px-1">
+              <h2 className="flex items-baseline gap-2 text-lg font-bold">
+                {label(tag)}
+                <span className="text-[13px] font-semibold text-muted">{list.length}문항</span>
+              </h2>
+              {tip && (
+                <p className="mt-1 rounded-xl bg-amber-soft px-4 py-3 text-[13.5px] leading-relaxed text-sub">
+                  <b className="text-foreground">분개 요령</b> · {tip}
+                </p>
+              )}
+            </div>
+            {list.map((q, i) => (
+              <QuestionRow key={q.id} q={q} index={i} shuffled={practiceChoices(q, questions)} />
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
