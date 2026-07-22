@@ -465,6 +465,15 @@ def parse_practical(pdf_path: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# 문제 시작 시그니처: 해설 흡수 상태를 끝내는 줄. 한국 회계 기출 stem 은
+# 지시문(다음/아래/...) 또는 시나리오(㈜.../OO상사...)로 시작한다.
+_QSTART = re.compile(
+    r"^(다음|아래|위의|빈칸|괄호|밑줄|보기|우리|당사|㈜|\(주\)|[가-힣]{2,4}(상사|상회|기업|산업|물산)\b)"
+    r"|것은\?|것을 고르|하시오|얼마인가|무엇인가|어느 것|옳은 것|옳지 않은|틀린 것|짝지어진|나열한"
+)
+
+
+# ---------------------------------------------------------------------------
 # 구회차 HWP 확정답안 파서 (100~110회). 이론 15문항만 — 실무는 hwp에서
 # 항목 번호가 자동번호라 추출 시 소실되어 신뢰 가능한 분리가 불가.
 # 문항번호도 소실되므로 [답] 마커 기준으로 블록을 나눈다.
@@ -499,8 +508,10 @@ def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
         zone = zone[zone.find("\n", base):]
 
     lines = [ln.strip() for ln in zone.split("\n") if ln.strip()]
-    # 상태기계: [답] 전 줄들 = 문제 본문, [답] 직후 ㆍ/※ 줄들 = 해설,
-    # 그 뒤 첫 일반 줄부터 다음 문제 본문.
+    # 상태기계: [답] 전 줄들 = 문제 본문, [답] 뒤는 다음 문제 시작 시그니처가
+    # 나올 때까지 전부 해설. 해설엔 ㆍ불릿 외에 ①~④ 보기별 설명, ＝계산식,
+    # T계정 표 셀 줄까지 섞여 있어 접두어 화이트리스트로는 다 못 거른다 —
+    # 시그니처를 못 찾아 stem이 해설로 먹히면 그 문항은 failed 로 드러난다.
     items: list[dict] = []
     body: list[str] = []
     absorbing_exp = False
@@ -509,9 +520,7 @@ def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
             items.append({"body": body, "ans": ln, "exp": []})
             body = []
             absorbing_exp = True
-        elif absorbing_exp and re.match(rf"^[ㆍ·※▶{GLYPHS}]", ln):
-            # ①~④ 로 시작하는 보기별 해설도 해설로 흡수 — 안 먹으면 다음 문제
-            # stem 머리에 붙는다. 새 문제는 항상 stem(비마커 줄)부터 시작하므로 안전.
+        elif absorbing_exp and not (_QSTART.search(ln) or ln in tuple(GLYPHS)):
             items[-1]["exp"].append(ln)
         else:
             absorbing_exp = False

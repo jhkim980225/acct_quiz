@@ -79,7 +79,7 @@ export default function QuestionCard({
             const isAnswer = done && i === answerIdx;
             const isWrongPick = done && i === chosen && i !== answerIdx;
             let cls =
-              "press w-full rounded-xl border px-4 py-3 text-left text-[14px] leading-snug break-words ";
+              "press w-full rounded-xl border px-4 py-3 text-left text-[14px] leading-snug break-words whitespace-pre-wrap ";
             if (isAnswer) cls += "pop border-green bg-green-soft font-bold text-green";
             else if (isWrongPick) cls += "shake border-red bg-red-soft font-bold text-red";
             else if (done) cls += "border-transparent bg-background text-muted";
@@ -96,7 +96,8 @@ export default function QuestionCard({
         </ol>
       )}
 
-      {q.answer_text && (
+      {/* 실무 정답 열람은 선택형(shuffled 제공) 아닐 때만 — 선택형은 보기로 채점 */}
+      {q.answer_text && !shuffled && (
         <div className="mt-1">
           <button
             className="press rounded-xl bg-blue-soft px-4 py-2.5 text-[14px] font-bold text-blue"

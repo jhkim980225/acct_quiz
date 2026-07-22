@@ -16,7 +16,7 @@ export default async function QuizPage({
   const { subject, type_tag, area, mode } = await searchParams;
   const label = type_tag ?? area;
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5">
       <header className="rise">
         <h1 className="text-2xl font-bold tracking-tight">
           {mode === "wrong"

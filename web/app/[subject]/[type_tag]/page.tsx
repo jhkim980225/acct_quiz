@@ -53,10 +53,12 @@ function QuestionRow({
   q,
   index,
   wrongPct,
+  shuffled,
 }: {
   q: Question;
   index: number;
   wrongPct?: number;
+  shuffled?: { choices: string[]; answerIdx: number }; // 실무 선택형: 사전 합성 보기
 }) {
   return (
     <details
@@ -92,14 +94,34 @@ function QuestionRow({
           bare
           q={q}
           shuffled={
-            q.choices && q.answer_idx !== null
+            shuffled ??
+            (q.choices && q.answer_idx !== null
               ? shuffleChoices(q.choices, q.answer_idx, q.id) // 빌드 타임 고정 셔플(F11)
-              : undefined
+              : undefined)
           }
         />
       </div>
     </details>
   );
+}
+
+/** 실무 문제를 4지선다로: 정답 분개 + 같은 유형(부족하면 전체 풀)에서 뽑은
+ *  오답 분개 3개. 토큰 0 — 다른 문제의 실제 정답을 오답 보기로 재사용. */
+function practiceChoices(
+  q: Question,
+  pool: Question[],
+): { choices: string[]; answerIdx: number } | undefined {
+  if (!q.answer_text) return undefined;
+  const others = pool.filter(
+    (o) => o.id !== q.id && o.answer_text && o.answer_text !== q.answer_text,
+  );
+  const sameTag = others.filter((o) => o.type_tag === q.type_tag);
+  const texts = [
+    ...new Set((sameTag.length >= 3 ? sameTag : others).map((o) => o.answer_text!)),
+  ];
+  if (texts.length < 3) return undefined; // 풀 부족 시 기존 '정답 보기' 폴백
+  const distractors = shuffleChoices(texts, 0, q.id).choices.slice(0, 3);
+  return shuffleChoices([q.answer_text, ...distractors], 0, `${q.id}#c`);
 }
 
 /** 실무 파트 페이지: 과목별 분개/결산 전용. 유형 페이지와 분리. */
@@ -116,8 +138,8 @@ async function PracticePage({ subject, slug }: { subject: string; slug: keyof ty
           {slug === "분개" ? "실무 분개" : "결산"}
         </h1>
         <p className="text-[14px] text-sub">
-          {questions.length}문항 · 문제를 누르면 펼쳐져요. 직접 분개해보고 정답과
-          비교하세요.
+          {questions.length}문항 · 문제를 누르면 펼쳐져요. 보기 중 올바른 분개를
+          고르면 바로 채점돼요.
         </p>
         <div className="pt-1">
           <Link
@@ -129,7 +151,7 @@ async function PracticePage({ subject, slug }: { subject: string; slug: keyof ty
         </div>
       </header>
       {questions.map((q, i) => (
-        <QuestionRow key={q.id} q={q} index={i} />
+        <QuestionRow key={q.id} q={q} index={i} shuffled={practiceChoices(q, questions)} />
       ))}
     </div>
   );
