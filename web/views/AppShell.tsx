@@ -208,6 +208,27 @@ function SubjectGroup({
         style={{ gridTemplateRows: collapsed ? "0fr" : "1fr" }}
       >
         <div className="overflow-hidden">
+          <ul className="flex gap-1 px-3 py-1">
+            {(["분개", "결산"] as const).map((p) => {
+              const href = `/${encodeURIComponent(subject)}/${p}`;
+              const active = pathname === href;
+              return (
+                <li key={p} className="flex-1">
+                  <Link
+                    href={href}
+                    onClick={onNavigate}
+                    className={`press block rounded-lg px-3 py-1.5 text-center text-[13px] font-bold ${
+                      active
+                        ? "bg-blue-soft text-blue"
+                        : "bg-background text-sub hover:bg-blue-soft hover:text-blue"
+                    }`}
+                  >
+                    {p === "분개" ? "실무 분개" : "결산"}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
           {[...new Set(list.map((t) => t.area))].map((area) => (
             <div key={area}>
               <p className="mt-1 px-3 py-1 text-[11px] font-bold tracking-wide text-blue">

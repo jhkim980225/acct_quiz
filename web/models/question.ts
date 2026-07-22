@@ -105,6 +105,24 @@ export async function getBySubjectTag(
   return data as Question[];
 }
 
+/** 실무 페이지(/[subject]/분개·결산): 과목+카테고리 전체 문제. */
+export async function getByCategory(
+  subject: string,
+  category: "실무분개" | "결산",
+): Promise<Question[]> {
+  const data = await withRetry(async () =>
+    supabase
+      .from("questions")
+      .select(COLS)
+      .eq("subject", subject)
+      .eq("category", category)
+      .order("source")
+      .order("created_at")
+      .limit(1000),
+  );
+  return data as Question[];
+}
+
 /** 오답 다시풀기(F7): id 목록으로 4지선다 문제만. 100개씩 청크(URL 길이 한계). */
 export async function getQuestionsByIds(ids: string[]): Promise<Question[]> {
   const out: Question[] = [];
