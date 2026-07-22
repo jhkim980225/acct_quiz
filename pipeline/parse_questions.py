@@ -235,12 +235,28 @@ def _cut_trailing_junk(text: str) -> str:
     푸터 뒤가 같은 해설의 이어짐(페이지 넘어감)이면 푸터 토큰만 지운다."""
     m = _EXPL_JUNK.search(text)
     if not m:
-        return text
+        return _cut_next_question(text)
     removed = text[m.start():]
     residue = _EXPL_JUNK.sub("", removed).strip()
     if len(residue) <= 30 or _NEXT_SECTION.search(removed):
-        return text[: m.start()].rstrip(" \nㆍ·-—")
-    return _EXPL_JUNK.sub(" ", text).strip()
+        return _cut_next_question(text[: m.start()].rstrip(" \nㆍ·-—"))
+    return _cut_next_question(_EXPL_JUNK.sub(" ", text).strip())
+
+
+# 해설 꼬리에 다음 문제가 통째로 붙는 케이스: "... 10. 완성품이 2,000개이고 ...?"
+# 문항번호 + 한글 시작 + 뒤쪽에 물음표가 있으면 그 지점부터 다음 문제로 보고 절단.
+# ("제21조 제1항" 류 조문은 번호 앞에 공백 경계가 없어 매치되지 않는다.)
+_NEXT_Q = re.compile(r"(?:(?<=\s)|^)(\d{1,2})\s*[.)]\s+(?=[가-힣㈜(])")
+
+
+def _cut_next_question(text: str) -> str:
+    for m in _NEXT_Q.finditer(text):
+        tail = text[m.start():]
+        if "?" in tail or "？" in tail:
+            cut = text[: m.start()].rstrip(" \nㆍ·-—")
+            if len(cut) >= 10:  # 해설 전체가 날아가는 오절단 방지
+                return cut
+    return text
 
 
 def parse_block(num: int, block: str) -> dict:
@@ -468,7 +484,8 @@ def parse_practical(pdf_path: Path) -> list[dict]:
 # 문제 시작 시그니처: 해설 흡수 상태를 끝내는 줄. 한국 회계 기출 stem 은
 # 지시문(다음/아래/...) 또는 시나리오(㈜.../OO상사...)로 시작한다.
 _QSTART = re.compile(
-    r"^(다음|아래|위의|빈칸|괄호|밑줄|보기|우리|당사|㈜|\(주\)|[가-힣]{2,4}(상사|상회|기업|산업|물산)\b)"
+    r"^(\d{1,2}\s*[.)]\s*)?"  # 구회차는 문항번호가 남아있음 ("13. 다음 중 ...")
+    r"(다음|아래|위의|빈칸|괄호|밑줄|보기|우리|당사|㈜|\(주\)|[가-힣]{2,4}(상사|상회|기업|산업|물산)\b)"
     r"|것은\?|것을 고르|하시오|얼마인가|무엇인가|어느 것|옳은 것|옳지 않은|틀린 것|짝지어진|나열한"
 )
 
@@ -481,10 +498,12 @@ _QSTART = re.compile(
 def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
     from hwp_importer import extract_document
 
-    m = re.search(r"제(\d+)회\s*(전산회계\s*\d\s*급|전산세무\s*\d\s*급)", path.name)
+    # 구회차 파일명은 공백 대신 '+' 구분자 변형이 있다 (예: 제90회+전산회계1급+답안.hwp)
+    m = re.search(r"제(\d+)회[\s+]*(전산회계[\s+]*\d[\s+]*급|전산세무[\s+]*\d[\s+]*급)", path.name)
     if not m:
         raise ValueError("파일명에서 과목/회차 식별 실패")
-    subject = re.sub(r"\s", "", m.group(2))
+    subject_raw = m.group(2).replace("+", "")
+    subject = re.sub(r"\s", "", subject_raw)
     source = f"{subject} {m.group(1)}회"
 
     text = extract_document(path).text
@@ -499,7 +518,19 @@ def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
         for e in entries
     ]
     if len(key) != 15:
-        raise ValueError(f"A형 정답표 {len(key)}개(15개 아님)")
+        # 86~98회 구형식: 정답표가 글리프가 아니라 <1>~<15> 마커 + 숫자(1~4) 줄
+        digit_lines = [
+            ln.strip()
+            for ln in km.group(1).split("\n")
+            if re.fullmatch(r"[1-4](\s*,\s*[1-4])*|모두\s*정답|전항\s*정답", ln.strip())
+        ]
+        if len(digit_lines) == 15:
+            key = [
+                [0, 1, 2, 3] if "정답" in e else [int(g) - 1 for g in re.findall(r"[1-4]", e)]
+                for e in digit_lines
+            ]
+        else:
+            raise ValueError(f"A형 정답표 {len(key)}개(15개 아님)")
 
     prac_i = text.find("실무시험")
     zone = text[km.end(): prac_i if prac_i > 0 else len(text)]
@@ -508,6 +539,16 @@ def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
         zone = zone[zone.find("\n", base):]
 
     lines = [ln.strip() for ln in zone.split("\n") if ln.strip()]
+    # 구형식 잔재 제거: 페이지 푸터(-3/12-), B형 정답표 마커(<7>), 안내·전제 문구
+    lines = [
+        ln
+        for ln in lines
+        if not re.fullmatch(r"-?\s*\d*\s*/\s*\d+\s*-?|<\d+>", ln)
+        and not re.match(
+            r"^(이론문제\s*답안작성|다음 문제를 보고 알맞은 것을|<?\s*기\s*본\s*전\s*제\s*>?$|문제에서 한국채택국제회계기준)",
+            ln,
+        )
+    ]
     # 상태기계: [답] 전 줄들 = 문제 본문, [답] 뒤는 다음 문제 시작 시그니처가
     # 나올 때까지 전부 해설. 해설엔 ㆍ불릿 외에 ①~④ 보기별 설명, ＝계산식,
     # T계정 표 셀 줄까지 섞여 있어 접두어 화이트리스트로는 다 못 거른다 —
@@ -531,6 +572,7 @@ def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
     for num, it in enumerate(items[:15], start=1):
         try:
             stem, choices = _hwp_split_choices(it["body"])
+            stem = re.sub(r"^\d{1,2}\s*[.)]\s*", "", stem)  # 구회차 문항번호 제거
             am = re.search(rf"\[답\]\s*([{GLYPHS}])", it["ans"])
             if not am:
                 raise ValueError("[답] 글리프 없음")
@@ -580,6 +622,21 @@ def _hwp_split_choices(body: list[str]) -> tuple[str, list[str]]:
     마커 소실(구회차 자동번호) 3가지 레이아웃 지원."""
     pos = [i for i, ln in enumerate(body) if ln in tuple(GLYPHS)]
     if len(pos) == 0:
+        # 구형식(86~98회): 보기가 줄 안에 인라인 — 한 줄에 2개씩도 있음
+        # ("① 10,000원 과대배부      ② 10,000원 과소배부").
+        # 플랫 텍스트에서 ①~④가 순서대로 정확히 1번씩 나오면 마커 기준 분할.
+        flat = "\n".join(body)
+        marks = [(flat.find(g), g) for g in GLYPHS]
+        if all(i >= 0 for i, _ in marks) and [g for _, g in sorted(marks)] == list(GLYPHS) \
+                and all(flat.count(g) == 1 for g in GLYPHS):
+            idxs = sorted(i for i, _ in marks) + [len(flat)]
+            stem = flat[: idxs[0]].strip()
+            choices = [
+                re.sub(r"\s+", " ", flat[idxs[k] + 1 : idxs[k + 1]]).strip()
+                for k in range(4)
+            ]
+            if stem and all(choices):
+                return stem, choices
         # 자동번호 소실: 마지막 '?' 줄 = 질문, 그 뒤 지문(있으면) + 마지막 4줄 = 보기
         qi = max((i for i, ln in enumerate(body) if ln.rstrip().endswith("?")), default=-1)
         if qi < 0 or len(body) - 1 - qi < 4:
@@ -627,13 +684,13 @@ def run_all() -> None:
     if not pdfs:
         raise SystemExit("raw/ 에 확정답안 PDF 없음. fetch_comcbt.py 먼저 실행.")
 
-    # 구회차(100~110회) HWP 확정답안 — PDF 없는 회차만
+    # 구회차(86~110회) HWP 확정답안 — PDF 없는 회차만
     pdf_rounds = {re.search(r"제(\d+)회", p.name).group(1) for p in pdfs}
     hwps = [
         p
         for p in sorted(RAW_DIR.glob("*답안*.hwp"))
         if (m := re.search(r"제(\d+)회", p.name))
-        and 100 <= int(m.group(1)) <= 110
+        and 86 <= int(m.group(1)) <= 110
         and m.group(1) not in pdf_rounds
     ]
 
