@@ -8,6 +8,7 @@ import {
   type Question,
 } from "@/models/question";
 import { globalAvgCorrect, MIN_ATTEMPTS } from "@/models/stats";
+import { getTypeNote } from "@/models/typeNotes";
 import { aggregateWrongStats } from "@/lib/wrongStats.server";
 import { shuffleChoices } from "@/models/shuffle";
 import QuestionCard from "@/views/QuestionCard";
@@ -178,6 +179,8 @@ export default async function TypeTagPage({ params }: { params: Params }) {
   const globalAvg = globalAvgCorrect(stats);
   const hasPct = theory.some((q) => pctOf.has(q.id));
 
+  const note = getTypeNote(t); // 유형별 핵심 정리(토큰0 큐레이션). 없으면 카드 생략.
+
   // 관련 유형 내부링크(F10): 같은 과목의 다른 유형 상위 6개
   const related = (await listSubjectTags())
     .filter((x) => x.subject === s && x.type_tag !== t)
@@ -221,6 +224,23 @@ export default async function TypeTagPage({ params }: { params: Params }) {
           </div>
         </header>
 
+        {note && (
+          <section className="card rise space-y-3 p-6">
+            <h2 className="flex items-center gap-1.5 text-[15px] font-bold">
+              📌 핵심 정리
+            </h2>
+            <p className="text-[14px] leading-relaxed text-sub">{note.intro}</p>
+            <ul className="space-y-2">
+              {note.points.map((line, i) => (
+                <li key={i} className="flex gap-2 text-[14px] leading-relaxed text-sub">
+                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-blue" />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {theory.length > 0 && (
           <section className="space-y-3">
             <h2 className="flex items-center gap-1.5 px-1 text-[15px] font-bold">
@@ -232,6 +252,22 @@ export default async function TypeTagPage({ params }: { params: Params }) {
             {theory.map((q, i) => (
               <QuestionRow key={q.id} q={q} index={i} wrongPct={pctOf.get(q.id)} />
             ))}
+          </section>
+        )}
+
+        {note && note.detail.length > 0 && (
+          <section className="card space-y-4 p-6">
+            <h2 className="text-[16px] font-bold">{t} 상세 정리</h2>
+            {note.detail.map((d) => (
+              <div key={d.h} className="space-y-1.5">
+                <h3 className="text-[14.5px] font-bold text-blue">{d.h}</h3>
+                <p className="text-[14px] leading-relaxed text-sub">{d.body}</p>
+              </div>
+            ))}
+            <p className="border-t border-line pt-3 text-[12px] text-muted">
+              일반기업회계기준·현행 세법 기준으로 정리한 학습용 요약입니다. 오류
+              제보는 문제 신고 버튼이나 하단 문의로 보내주세요.
+            </p>
           </section>
         )}
 
