@@ -53,35 +53,44 @@ export default async function TypeTagPage({ params }: { params: Params }) {
             .join(" · ")}
           문항 · 보기를 누르면 바로 채점돼요
         </p>
-        <Link
-          href={`/quiz?subject=${encodeURIComponent(s)}&type_tag=${encodeURIComponent(t)}`}
-          className="press inline-block rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
-        >
-          이 유형만 랜덤 풀기
-        </Link>
+        {/* 진입점 단추: 이론은 퀴즈로, 분개·결산은 아래 목록으로 */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {(() => {
+            const nTheory = questions.filter((q) => q.category === "이론").length;
+            const nPrac = questions.filter((q) => q.category !== "이론").length;
+            return (
+              <>
+                {nTheory > 0 && (
+                  <Link
+                    href={`/quiz?subject=${encodeURIComponent(s)}&type_tag=${encodeURIComponent(t)}`}
+                    className="press rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
+                  >
+                    이론 풀기 <span className="opacity-70">{nTheory}</span>
+                  </Link>
+                )}
+                {nPrac > 0 && (
+                  <a
+                    href="#practice"
+                    className="press rounded-xl bg-blue-soft px-5 py-3 text-[14px] font-bold text-blue"
+                  >
+                    분개·결산 풀기 <span className="opacity-70">{nPrac}</span>
+                  </a>
+                )}
+              </>
+            );
+          })()}
+        </div>
       </header>
 
-      {/* 이론은 나열하지 않음 — 퀴즈에서 풀도록 유도. 페이지엔 실무(분개·결산)만. */}
-      {questions.some((q) => q.category === "이론") && (
-        <div className="card flex flex-wrap items-center justify-between gap-3 p-5">
-          <p className="text-[14px] font-semibold">
-            이론 {questions.filter((q) => q.category === "이론").length}문항은
-            <span className="text-sub"> 퀴즈에서 랜덤 출제돼요</span>
-          </p>
-          <Link
-            href={`/quiz?subject=${encodeURIComponent(s)}&type_tag=${encodeURIComponent(t)}`}
-            className="press shrink-0 rounded-xl bg-blue-soft px-4 py-2.5 text-[13px] font-bold text-blue"
-          >
-            이론 풀러 가기
-          </Link>
-        </div>
-      )}
-
-      {(["실무분개", "결산"] as const).map((cat) => {
+      {(["실무분개", "결산"] as const).map((cat, _i, cats) => {
         const list = questions.filter((q) => q.category === cat);
         if (list.length === 0) return null;
+        // 분개가 없고 결산만 있는 유형도 #practice 앵커가 잡히게 첫 실무 섹션에 부여
+        const firstPrac = cats.find((c) =>
+          questions.some((q) => q.category === c),
+        );
         return (
-          <section key={cat} className="space-y-4">
+          <section key={cat} id={cat === firstPrac ? "practice" : undefined} className="scroll-mt-20 space-y-4">
             <h2 className="flex items-baseline gap-2 border-b border-line pb-2 text-lg font-bold">
               {cat === "실무분개" ? "실무 분개" : "결산"}
               <span className="text-[13px] font-semibold text-muted">
