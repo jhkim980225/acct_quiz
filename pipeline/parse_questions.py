@@ -439,6 +439,149 @@ def parse_practical(pdf_path: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# 구회차 HWP 확정답안 파서 (100~110회). 이론 15문항만 — 실무는 hwp에서
+# 항목 번호가 자동번호라 추출 시 소실되어 신뢰 가능한 분리가 불가.
+# 문항번호도 소실되므로 [답] 마커 기준으로 블록을 나눈다.
+# ---------------------------------------------------------------------------
+def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
+    from hwp_importer import extract_document
+
+    m = re.search(r"제(\d+)회\s*(전산회계\s*\d\s*급|전산세무\s*\d\s*급)", path.name)
+    if not m:
+        raise ValueError("파일명에서 과목/회차 식별 실패")
+    subject = re.sub(r"\s", "", m.group(2))
+    source = f"{subject} {m.group(1)}회"
+
+    text = extract_document(path).text
+    km = re.search(r"A형(.*?)B형", text, re.DOTALL)
+    if not km:
+        raise ValueError("A형 정답표 없음")
+    entries = re.findall(
+        rf"[{GLYPHS}](?:\s*,\s*[{GLYPHS}])*|모두\s*정답|전항\s*정답", km.group(1)
+    )
+    key = [
+        [0, 1, 2, 3] if "정답" in e else [GLYPHS.index(g) for g in re.findall(f"[{GLYPHS}]", e)]
+        for e in entries
+    ]
+    if len(key) != 15:
+        raise ValueError(f"A형 정답표 {len(key)}개(15개 아님)")
+
+    prac_i = text.find("실무시험")
+    zone = text[km.end(): prac_i if prac_i > 0 else len(text)]
+    base = zone.find("전 제")  # '< 기 본 전 제 >' 이후부터 본문 (B형 표 스킵)
+    if base > 0:
+        zone = zone[zone.find("\n", base):]
+
+    lines = [ln.strip() for ln in zone.split("\n") if ln.strip()]
+    # 상태기계: [답] 전 줄들 = 문제 본문, [답] 직후 ㆍ/※ 줄들 = 해설,
+    # 그 뒤 첫 일반 줄부터 다음 문제 본문.
+    items: list[dict] = []
+    body: list[str] = []
+    absorbing_exp = False
+    for ln in lines:
+        if ln.startswith("[답]"):
+            items.append({"body": body, "ans": ln, "exp": []})
+            body = []
+            absorbing_exp = True
+        elif absorbing_exp and re.match(r"^[ㆍ·※▶]", ln):
+            items[-1]["exp"].append(ln)
+        else:
+            absorbing_exp = False
+            body.append(ln)
+
+    ok: list[dict] = []
+    failed: list[dict] = []
+    for num, it in enumerate(items[:15], start=1):
+        try:
+            stem, choices = _hwp_split_choices(it["body"])
+            am = re.search(rf"\[답\]\s*([{GLYPHS}])", it["ans"])
+            if not am:
+                raise ValueError("[답] 글리프 없음")
+            answer_idx = GLYPHS.index(am.group(1))
+            accepted = key[num - 1]
+            exp_text = re.sub(rf"^\[답\]\s*[{GLYPHS}]?(\s*,\s*[{GLYPHS}])*\s*", "", it["ans"])
+            explanation = clean_explanation(
+                "\n".join(x for x in [exp_text, *it["exp"]] if x).strip() or None
+            )
+            if answer_idx not in accepted:
+                answer_idx = accepted[0]
+                explanation = ((explanation or "") + " [주의: 본문 답과 정답표 불일치, 정답표 채택]").strip()
+            if len(accepted) > 1:
+                note = "복수정답 인정: " + ",".join(GLYPHS[i] for i in accepted)
+                explanation = ((explanation or "") + f" [{note}]").strip()
+            tag = classify(stem, subject)
+            ok.append(
+                {
+                    "subject": subject,
+                    "category": "이론",
+                    "type_tag": tag,
+                    "area": area_of(tag),
+                    "stem": stem,
+                    "choices": choices,
+                    "answer_idx": answer_idx,
+                    "answer_text": None,
+                    "explanation": explanation,
+                    "source": source,
+                }
+            )
+        except ValueError as e:
+            failed.append(
+                {"source": source, "number": num, "reason": str(e), "block": "\n".join(it["body"])}
+            )
+    if len(items) < 15:
+        failed.append(
+            {"source": source, "number": None, "reason": f"[답] 블록 {len(items)}개(15개 미만)", "block": ""}
+        )
+    return ok, failed
+
+
+_SPILL_JUNK = re.compile(r"^\((차|대)\)$|^[\d,]+원?$|^원$|^\d{4}\.\d{2}\.")
+
+
+def _hwp_split_choices(body: list[str]) -> tuple[str, list[str]]:
+    """본문 줄에서 (stem, 보기 4개) 분리. 마커 4연속+텍스트4, 인터리브,
+    마커 소실(구회차 자동번호) 3가지 레이아웃 지원."""
+    pos = [i for i, ln in enumerate(body) if ln in tuple(GLYPHS)]
+    if len(pos) == 0:
+        # 자동번호 소실: 마지막 '?' 줄 = 질문, 그 뒤 지문(있으면) + 마지막 4줄 = 보기
+        qi = max((i for i, ln in enumerate(body) if ln.rstrip().endswith("?")), default=-1)
+        if qi < 0 or len(body) - 1 - qi < 4:
+            raise ValueError("보기 마커 0개(4개 아님)")
+        choices = body[-4:]
+        stem_lines = body[: len(body) - 4]
+        # 앞 문제 해설(분개표)이 흘러들어온 잔재 제거
+        while stem_lines and _SPILL_JUNK.match(stem_lines[0]):
+            stem_lines.pop(0)
+        stem = "\n".join(stem_lines).strip()
+        if not stem or any(not c for c in choices):
+            raise ValueError("마커 소실 복구 실패")
+        return stem, choices
+    if len(pos) != 4:
+        raise ValueError(f"보기 마커 {len(pos)}개(4개 아님)")
+    if pos == list(range(pos[0], pos[0] + 4)):
+        stem_lines = body[: pos[0]]
+        texts = body[pos[3] + 1 :]
+        if len(texts) == 4:
+            choices = texts
+        elif len(texts) == 8:
+            choices = [f"{texts[i]} / {texts[i + 4]}" for i in range(4)]
+        else:
+            raise ValueError(f"보기 텍스트 {len(texts)}줄")
+    else:
+        stem_lines = body[: pos[0]]
+        bounds = pos + [len(body)]
+        choices = [
+            " ".join(body[bounds[k] + 1 : bounds[k + 1]]).strip() for k in range(4)
+        ]
+    if any(not c for c in choices):
+        raise ValueError("빈 보기 존재")
+    stem = "\n".join(stem_lines).strip()
+    if not stem:
+        raise ValueError("stem 비어있음")
+    return stem, choices
+
+
+# ---------------------------------------------------------------------------
 # 실행 모드
 # ---------------------------------------------------------------------------
 def run_all() -> None:
@@ -446,6 +589,16 @@ def run_all() -> None:
     pdfs = sorted(RAW_DIR.glob("*확정답안*.pdf"))
     if not pdfs:
         raise SystemExit("raw/ 에 확정답안 PDF 없음. fetch_comcbt.py 먼저 실행.")
+
+    # 구회차(100~110회) HWP 확정답안 — PDF 없는 회차만
+    pdf_rounds = {re.search(r"제(\d+)회", p.name).group(1) for p in pdfs}
+    hwps = [
+        p
+        for p in sorted(RAW_DIR.glob("*답안*.hwp"))
+        if (m := re.search(r"제(\d+)회", p.name))
+        and 100 <= int(m.group(1)) <= 110
+        and m.group(1) not in pdf_rounds
+    ]
 
     all_ok: list[dict] = []
     all_failed: list[dict] = []
@@ -468,6 +621,20 @@ def run_all() -> None:
             print(f"    실패 {f['number']}번: {f['reason']}")
         all_ok.extend(ok)
         all_ok.extend(prac)
+        all_failed.extend(failed)
+
+    for hwp in hwps:
+        try:
+            ok, failed = parse_hwp_answer(hwp)
+        except Exception as e:  # olefile 깨짐 등 파일 단위 실패
+            print(f"[{hwp.name}] 파일 단위 실패: {e}")
+            all_failed.append({"source": hwp.name, "number": None, "reason": str(e), "block": ""})
+            continue
+        n_exp = sum(1 for q in ok if q["explanation"])
+        print(f"[{hwp.name}] 이론 {len(ok)}/15, 해설 {n_exp}/{len(ok) or 1}, 실패 {len(failed)}")
+        for f in failed:
+            print(f"    실패 {f['number']}번: {f['reason']}")
+        all_ok.extend(ok)
         all_failed.extend(failed)
 
     _write(all_ok, all_failed)
