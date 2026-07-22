@@ -8,12 +8,17 @@ export default function LoginCard({ message }: { message?: string }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <div className="card rise mx-auto max-w-sm space-y-4 p-7 text-center">
       <p className="text-lg font-bold">로그인</p>
       <p className="text-[14px] leading-relaxed text-sub">
         {message ?? "오답노트는 로그인하면 기기가 바뀌어도 이어져요."}
+      </p>
+      <p className="rounded-xl bg-background p-3 text-[12.5px] leading-relaxed text-muted">
+        구글과 이메일은 서로 다른 계정이에요. 기록을 이어가려면{" "}
+        <b className="text-sub">이전에 쓰던 방법</b>으로 로그인하세요.
       </p>
 
       <button
@@ -44,9 +49,16 @@ export default function LoginCard({ message }: { message?: string }) {
             e.preventDefault();
             if (!email || busy) return;
             setBusy(true);
-            const { error } = await signInWithEmail(email, location.pathname);
+            setError(null);
+            const { error: err } = await signInWithEmail(email, location.pathname);
             setBusy(false);
-            if (!error) setSent(true);
+            if (!err) return setSent(true);
+            // 대부분 레이트리밋(60초 1회) — 원문 노출 대신 사람 말로
+            setError(
+              err.status === 429 || /rate/i.test(err.message)
+                ? "잠시 후 다시 시도해주세요. 링크는 1분에 한 번만 보낼 수 있어요."
+                : "링크 발송에 실패했어요. 이메일 주소를 확인하고 다시 시도해주세요.",
+            );
           }}
         >
           <input
@@ -64,6 +76,11 @@ export default function LoginCard({ message }: { message?: string }) {
           >
             {busy ? "전송 중…" : "이메일로 로그인 링크 받기"}
           </button>
+          {error && (
+            <p className="pop rounded-xl bg-red-soft p-3 text-[13px] font-semibold text-red">
+              {error}
+            </p>
+          )}
         </form>
       )}
     </div>
