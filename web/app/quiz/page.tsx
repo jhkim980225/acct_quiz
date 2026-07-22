@@ -16,10 +16,14 @@ export default async function QuizPage({
   const { subject, type_tag, area, mode } = await searchParams;
   const label = type_tag ?? area;
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-2xl space-y-5">
       <header className="rise">
         <h1 className="text-2xl font-bold tracking-tight">
-          {mode === "wrong" ? "오답 다시풀기" : `문제풀기${label ? ` — ${label}` : ""}`}
+          {mode === "wrong"
+            ? "오답 다시풀기"
+            : mode === "hard"
+              ? "오답률 높은 문제"
+              : `문제풀기${label ? ` — ${label}` : ""}`}
         </h1>
         {label && !mode && (
           <p className="mt-1 text-[14px] text-sub">

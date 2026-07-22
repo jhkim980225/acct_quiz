@@ -19,7 +19,7 @@ export default async function SearchPage({
   const results = keyword ? await searchQuestions(keyword) : [];
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-2xl space-y-5">
       <header className="rise space-y-3">
         <h1 className="text-2xl font-bold tracking-tight">문제 검색</h1>
         <form action="/search" className="flex gap-2">

@@ -37,18 +37,18 @@ export default function WrongPage() {
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (user === undefined)
-    return <div className="card p-12 text-center text-muted">확인 중…</div>;
+    return <div className="card mx-auto max-w-2xl p-12 text-center text-muted">확인 중…</div>;
 
   if (user === null)
     return (
-      <div className="space-y-5">
+      <div className="mx-auto max-w-2xl space-y-5">
         <h1 className="rise text-2xl font-bold tracking-tight">오답노트</h1>
         <LoginCard />
       </div>
     );
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-2xl space-y-5">
       <header className="rise flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">오답노트</h1>

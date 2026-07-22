@@ -8,6 +8,7 @@ import {
   getQuestionsByIds,
   type Question,
 } from "@/models/question";
+import { listWrongStats, MIN_ATTEMPTS } from "@/models/stats";
 import { shuffleChoices } from "@/models/shuffle";
 import { recordLocal } from "@/models/localAttempts";
 import { getSessionUser } from "@/models/auth";
@@ -58,7 +59,20 @@ export default function QuizRunner({
           count === "random"
             ? 3 + Math.floor(Math.random() * 13) // 3~15 랜덤
             : Number(count);
-        qs = await getQuizSet({ subject, typeTag, area, limit });
+        if (mode === "hard") {
+          // 오답률 높은 문제(전 유저 통계) 순. 표본 없으면 랜덤 폴백
+          const stats = (await listWrongStats())
+            .filter((s) => s.attempts >= MIN_ATTEMPTS && s.wrong_pct > 0)
+            .sort((a, b) => b.wrong_pct - a.wrong_pct)
+            .slice(0, limit);
+          const rank = new Map(stats.map((s, i) => [s.question_id, i]));
+          const hard = (await getQuestionsByIds(stats.map((s) => s.question_id))).sort(
+            (a, b) => (rank.get(a.id) ?? 99) - (rank.get(b.id) ?? 99),
+          );
+          qs = hard.length > 0 ? hard : await getQuizSet({ limit });
+        } else {
+          qs = await getQuizSet({ subject, typeTag, area, limit });
+        }
       }
       setItems(
         qs.map((q) => ({
