@@ -7,7 +7,8 @@ import {
   listSubjectTags,
   type Question,
 } from "@/models/question";
-import { listWrongStats, globalAvgCorrect, MIN_ATTEMPTS } from "@/models/stats";
+import { globalAvgCorrect, MIN_ATTEMPTS } from "@/models/stats";
+import { aggregateWrongStats } from "@/lib/wrongStats.server";
 import { shuffleChoices } from "@/models/shuffle";
 import QuestionCard from "@/views/QuestionCard";
 import MyStatsCard from "@/views/MyStatsCard";
@@ -143,7 +144,7 @@ export default async function TypeTagPage({ params }: { params: Params }) {
     return <PracticePage subject={s} slug={t as keyof typeof PRACTICE} />;
 
   // 유형 페이지는 이론(4지선다)만. 실무 분개·결산은 /[subject]/분개, /[subject]/결산 으로 분리.
-  const [all, stats] = await Promise.all([getBySubjectTag(s, t), listWrongStats()]);
+  const [all, stats] = await Promise.all([getBySubjectTag(s, t), aggregateWrongStats()]);
   if (all.length === 0) notFound(); // 존재하지 않는 조합 URL 방어
   const pctOf = new Map(
     stats.filter((x) => x.attempts >= MIN_ATTEMPTS).map((x) => [x.question_id, x.wrong_pct]),

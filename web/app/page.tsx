@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listSubjectTags, getQuestionsByIds } from "@/models/question";
-import { listWrongStats, globalAvgCorrect, MIN_ATTEMPTS } from "@/models/stats";
+import { globalAvgCorrect, MIN_ATTEMPTS } from "@/models/stats";
+import { aggregateWrongStats } from "@/lib/wrongStats.server";
 import MyStatsCard from "@/views/MyStatsCard";
 
 export const revalidate = 3600; // 1시간 ISR
@@ -24,7 +25,7 @@ type HardItem = {
 
 /** 전 유저 오답률 기준 '많이 틀린 유형' TOP 5. 표본 부족 시 문항수 순 폴백. */
 async function listHardItems(): Promise<{ items: HardItem[]; hasData: boolean }> {
-  const stats = (await listWrongStats()).filter((s) => s.attempts >= MIN_ATTEMPTS);
+  const stats = (await aggregateWrongStats()).filter((s) => s.attempts >= MIN_ATTEMPTS);
   if (stats.length > 0) {
     const qs = await getQuestionsByIds(stats.map((s) => s.question_id));
     const byId = new Map(qs.map((q) => [q.id, q]));
@@ -78,7 +79,7 @@ async function listHardItems(): Promise<{ items: HardItem[]; hasData: boolean }>
 
 /** 홈(F4). 취약점 집중 공략 콘셉트 랜딩 (design/메인.png). */
 export default async function Home() {
-  const [{ items, hasData }, stats] = await Promise.all([listHardItems(), listWrongStats()]);
+  const [{ items, hasData }, stats] = await Promise.all([listHardItems(), aggregateWrongStats()]);
   const globalAvg = globalAvgCorrect(stats);
 
   return (

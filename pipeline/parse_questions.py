@@ -217,7 +217,30 @@ def clean_explanation(text: str | None) -> str | None:
     cleaned = "\n".join(out)
     cleaned = re.sub(r"(\d)\s+원", r"\1원", cleaned)
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = _cut_trailing_junk(cleaned)
     return cleaned or None
+
+
+# PDF 줄 병합 탓에 페이지 푸터·다음 섹션 헤더가 해설 줄 안으로 합쳐지면
+# _JUNK_LINE(줄 단위)을 통과한다. 해설 텍스트 안에서 다시 걸러낸다.
+_EXPL_JUNK = re.compile(
+    r"(\d+\s*/\s*\d+\s*\(뒷면\s*계속\)|\(뒷면\s*계속\)"
+    r"|\[제\s*\d+\s*회[^\]]*\]|실\s?무\s?시\s?험)"
+)
+_NEXT_SECTION = re.compile(r"(회사코드|기 ?본 ?전 ?제|확정답안|물음에 답하시오)")
+
+
+def _cut_trailing_junk(text: str) -> str:
+    """해설 꼬리의 페이지 푸터/실무시험 섹션 제거.
+    푸터 뒤가 같은 해설의 이어짐(페이지 넘어감)이면 푸터 토큰만 지운다."""
+    m = _EXPL_JUNK.search(text)
+    if not m:
+        return text
+    removed = text[m.start():]
+    residue = _EXPL_JUNK.sub("", removed).strip()
+    if len(residue) <= 30 or _NEXT_SECTION.search(removed):
+        return text[: m.start()].rstrip(" \nㆍ·-—")
+    return _EXPL_JUNK.sub(" ", text).strip()
 
 
 def parse_block(num: int, block: str) -> dict:
@@ -418,6 +441,9 @@ def parse_practical(pdf_path: Path) -> list[dict]:
             answer_text = re.sub(r"(\d)\s+원", r"\1원", answer_text)
             answer_text = re.sub(r"원(\s+원)+", "원", answer_text)
             explanation = "\n".join(ans_lines[exp_start:]).strip() or None
+            if explanation:
+                explanation = _cut_trailing_junk(explanation) or None
+            answer_text = _cut_trailing_junk(answer_text)
             if not stem or not answer_text:
                 continue
             out.append(
@@ -483,7 +509,9 @@ def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
             items.append({"body": body, "ans": ln, "exp": []})
             body = []
             absorbing_exp = True
-        elif absorbing_exp and re.match(r"^[ㆍ·※▶]", ln):
+        elif absorbing_exp and re.match(rf"^[ㆍ·※▶{GLYPHS}]", ln):
+            # ①~④ 로 시작하는 보기별 해설도 해설로 흡수 — 안 먹으면 다음 문제
+            # stem 머리에 붙는다. 새 문제는 항상 stem(비마커 줄)부터 시작하므로 안전.
             items[-1]["exp"].append(ln)
         else:
             absorbing_exp = False

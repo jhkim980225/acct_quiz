@@ -49,15 +49,8 @@ select subject, area, type_tag, count(*)::int as count
 from questions
 group by subject, area, type_tag;
 
--- 문제별 전체 오답률(전 유저 익명 집계). 랜딩/유형 페이지 '오답률 높은 문제' 재료.
--- definer 뷰로 attempts RLS 우회 — user_id 미노출 집계라 공개해도 안전.
-create or replace view question_wrong_stats as
-select question_id,
-       count(*)::int as attempts,
-       round(100.0 * count(*) filter (where not is_correct) / count(*))::int as wrong_pct
-from attempts
-group by question_id;
-grant select on question_wrong_stats to anon, authenticated;
+-- 오답률 집계는 웹 서버(service role)에서 JS로 수행: web/lib/wrongStats.server.ts
+-- attempts 가 수만 건 넘어가면 SQL 뷰로 이전 검토.
 
 create index if not exists questions_subject_tag on questions (subject, type_tag);
 create index if not exists attempts_question on attempts (question_id);

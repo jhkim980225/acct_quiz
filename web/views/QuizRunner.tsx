@@ -8,7 +8,7 @@ import {
   getQuestionsByIds,
   type Question,
 } from "@/models/question";
-import { listWrongStats, MIN_ATTEMPTS } from "@/models/stats";
+import { fetchWrongStats, MIN_ATTEMPTS } from "@/models/stats";
 import { shuffleChoices } from "@/models/shuffle";
 import { recordLocal } from "@/models/localAttempts";
 import { getSessionUser } from "@/models/auth";
@@ -61,7 +61,7 @@ export default function QuizRunner({
             : Number(count);
         if (mode === "hard") {
           // 오답률 높은 문제(전 유저 통계) 순. 표본 없으면 랜덤 폴백
-          const stats = (await listWrongStats())
+          const stats = (await fetchWrongStats())
             .filter((s) => s.attempts >= MIN_ATTEMPTS && s.wrong_pct > 0)
             .sort((a, b) => b.wrong_pct - a.wrong_pct)
             .slice(0, limit);

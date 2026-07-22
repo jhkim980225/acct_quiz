@@ -7,15 +7,12 @@ export const MIN_ATTEMPTS = 3;
 
 export type WrongStat = { question_id: string; attempts: number; wrong_pct: number };
 
-/** 문제별 전체 오답률(question_wrong_stats 뷰). 뷰 미생성·무데이터면 빈 배열 → 기능 자동 숨김. */
-export async function listWrongStats(): Promise<WrongStat[]> {
+/** 클라이언트용 오답률 집계 조회(/api/wrong-stats). 실패 시 빈 배열 → 기능 자동 숨김. */
+export async function fetchWrongStats(): Promise<WrongStat[]> {
   try {
-    const { data, error } = await supabase
-      .from("question_wrong_stats")
-      .select("question_id,attempts,wrong_pct")
-      .limit(5000);
-    if (error) return [];
-    return data as WrongStat[];
+    const res = await fetch("/api/wrong-stats");
+    if (!res.ok) return [];
+    return (await res.json()) as WrongStat[];
   } catch {
     return [];
   }
