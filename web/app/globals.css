@@ -59,6 +59,11 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
+html,
+body {
+  overflow-x: clip; /* 히어로 글로우 등 장식 요소가 가로 스크롤 만들지 않게 */
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

@@ -66,6 +66,15 @@ export default function AppShell({
         바로 문제풀기
       </Link>
 
+      <form action="/search" className="mb-1" onSubmit={() => setOpen(false)}>
+        <input
+          type="search"
+          name="q"
+          placeholder="문제 검색"
+          className="w-full rounded-xl border border-line bg-background px-4 py-2.5 text-[13.5px] outline-none focus:border-blue"
+        />
+      </form>
+
       <Link
         href="/wrong"
         onClick={() => setOpen(false)}

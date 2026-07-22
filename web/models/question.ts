@@ -73,6 +73,20 @@ export async function listMixedTags(): Promise<
     );
 }
 
+/** 키워드 검색: stem에 포함된 문제. */
+export async function searchQuestions(keyword: string): Promise<Question[]> {
+  const safe = keyword.replace(/[%_]/g, "\\$&").trim();
+  if (!safe) return [];
+  const data = await withRetry(async () =>
+    supabase
+      .from("questions")
+      .select(COLS)
+      .ilike("stem", `%${safe}%`)
+      .limit(50),
+  );
+  return data as Question[];
+}
+
 /** 유형 페이지: 해당 조합 전체 문제. */
 export async function getBySubjectTag(
   subject: string,

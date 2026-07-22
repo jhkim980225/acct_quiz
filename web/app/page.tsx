@@ -48,7 +48,7 @@ export default async function Home() {
             </h1>
             <p className="text-[15px] leading-relaxed text-sub">
               전산회계 1급·2급, 전산세무 2급 기출을 유형별로. 보기를 누르는
-              순간 채점되고, 공식 해설이 바로 따라와요. 오른쪽 문제로 지금
+              순간 채점되고, 공식 해설이 바로 따라와요. 데모 문제로 지금
               시험해보세요.
             </p>
             <div className="flex flex-wrap gap-2">
