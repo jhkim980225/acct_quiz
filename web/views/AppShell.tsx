@@ -171,6 +171,12 @@ export default function AppShell({
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-16 pt-16 lg:px-10 lg:pt-8">
         {children}
+        <footer className="mt-14 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-5 text-[12.5px] text-muted">
+          <span>© 회계 문제은행</span>
+          <Link href="/about" className="hover:text-blue">소개</Link>
+          <Link href="/privacy" className="hover:text-blue">개인정보처리방침</Link>
+          <a href="mailto:jhkimgpt4@gmail.com" className="hover:text-blue">문의</a>
+        </footer>
       </main>
     </div>
   );

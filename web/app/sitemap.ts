@@ -9,6 +9,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: BASE, changeFrequency: "weekly", priority: 1 },
     { url: `${BASE}/quiz`, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${BASE}/about`, changeFrequency: "monthly" as const, priority: 0.3 },
+    { url: `${BASE}/privacy`, changeFrequency: "monthly" as const, priority: 0.1 },
     ...subjects.flatMap((s) =>
       ["분개", "결산"].map((p) => ({
         url: `${BASE}/${encodeURIComponent(s)}/${encodeURIComponent(p)}`,
