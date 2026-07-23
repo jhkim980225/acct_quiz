@@ -248,17 +248,25 @@ export default async function TypeTagPage({ params }: { params: Params }) {
             이론 {theory.length}문항
             {hasPct && " · 오답률 높은 문제로 학습효과 UP!"}
           </p>
-          {/* 유형 페이지는 이론 전용 — 분개·결산 진입은 사이드바에만 둔다 */}
-          {theory.length > 0 && (
-            <div className="pt-1">
+          <div className="flex flex-wrap gap-2 pt-1">
+            {theory.length > 0 && (
               <Link
                 href={`/quiz?subject=${encodeURIComponent(s)}&type_tag=${encodeURIComponent(t)}`}
-                className="press inline-block rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
+                className="press rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
               >
                 이론 풀기 <span className="opacity-70">{theory.length}</span>
               </Link>
-            </div>
-          )}
+            )}
+            {(["분개", "결산"] as const).map((p) => (
+              <Link
+                key={p}
+                href={`/${encodeURIComponent(s)}/${p}`}
+                className="press rounded-xl bg-blue-soft px-5 py-3 text-[14px] font-bold text-blue"
+              >
+                {p === "분개" ? "실무 분개" : "결산"} 풀러 가기
+              </Link>
+            ))}
+          </div>
         </header>
 
         {note && (
@@ -278,20 +286,7 @@ export default async function TypeTagPage({ params }: { params: Params }) {
           </section>
         )}
 
-        {theory.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="flex items-center gap-1.5 px-1 text-[15px] font-bold">
-              {hasPct ? "🔥 오답률 높은 문제" : "기출 문제"}
-              <span className="text-[12px] font-semibold text-muted">
-                {hasPct ? "오답률 순" : "회차순"}
-              </span>
-            </h2>
-            {theory.map((q, i) => (
-              <QuestionRow key={q.id} q={q} index={i} wrongPct={pctOf.get(q.id)} />
-            ))}
-          </section>
-        )}
-
+        {/* 문제 목록은 유형 페이지에 안 깐다 — 풀이는 퀴즈(이론 풀기)로만 */}
         {note && note.detail.length > 0 && (
           <section className="card space-y-4 p-6">
             <h2 className="text-[16px] font-bold">{t} 상세 정리</h2>
