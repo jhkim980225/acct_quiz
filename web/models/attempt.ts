@@ -21,24 +21,50 @@ export async function recordAttempt(
   }
 }
 
-/** 오답노트: 문제별 최신 시도가 오답인 것만, 최신순. */
-export async function getWrongQuestions(): Promise<Question[]> {
+export type WrongEntry = { q: Question; at: string }; // at = 틀린 시각(ISO)
+
+/** 오답노트: 문제별 최신 시도가 오답인 것만, 최신순. 틀린 일시 포함. */
+export async function getWrongQuestions(): Promise<WrongEntry[]> {
   const { data, error } = await supabase
     .from("attempts")
     .select("question_id, is_correct, created_at, questions(*)")
     .order("created_at", { ascending: false })
     .limit(1000); // ponytail: 최근 1000시도 기준. 헤비유저 생기면 distinct-on RPC로
   if (error) throw error;
-  const latest = new Map<string, { is_correct: boolean; q: Question }>();
+  const latest = new Map<string, { is_correct: boolean; q: Question; at: string }>();
   for (const a of data as unknown as {
     question_id: string;
     is_correct: boolean;
+    created_at: string;
     questions: Question;
   }[]) {
     if (!latest.has(a.question_id))
-      latest.set(a.question_id, { is_correct: a.is_correct, q: a.questions });
+      latest.set(a.question_id, { is_correct: a.is_correct, q: a.questions, at: a.created_at });
   }
-  return [...latest.values()].filter((x) => !x.is_correct).map((x) => x.q);
+  return [...latest.values()]
+    .filter((x) => !x.is_correct)
+    .map((x) => ({ q: x.q, at: x.at }));
+}
+
+export type AttemptEntry = {
+  q: Question;
+  at: string;
+  is_correct: boolean;
+};
+
+/** 최근 풀이 기록(정답 포함), 최신순. */
+export async function getRecentAttempts(limit = 50): Promise<AttemptEntry[]> {
+  const { data, error } = await supabase
+    .from("attempts")
+    .select("is_correct, created_at, questions(*)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (
+    data as unknown as { is_correct: boolean; created_at: string; questions: Question | null }[]
+  )
+    .filter((a) => a.questions)
+    .map((a) => ({ q: a.questions!, at: a.created_at, is_correct: a.is_correct }));
 }
 
 /** 익명(localStorage) 기록을 attempts로 이관 후 비움. 로그인 직후 1회. */

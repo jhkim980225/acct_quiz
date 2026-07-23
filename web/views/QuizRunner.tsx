@@ -69,7 +69,7 @@ export default function QuizRunner({
         if (!u) return setNeedLogin(true);
         // 오답 다시풀기(F7): 4지선다만 (분개·결산은 오답노트에서 열람)
         const wrong = await getWrongQuestions();
-        qs = await getQuestionsByIds(wrong.map((q) => q.id));
+        qs = await getQuestionsByIds(wrong.map((w) => w.q.id));
       } else {
         const limit =
           count === "random"
