@@ -6,6 +6,44 @@ import ReportButton from "@/views/ReportButton";
 
 const NUM = "①②③④";
 
+/** 분개 텍스트 렌더: 날짜는 제 줄로, (차)…(대)… 는 세로 구분선 있는 2단으로. */
+function JournalText({ text }: { text: string }) {
+  return (
+    <span className="block space-y-1">
+      {text.split("\n").map((raw, i) => {
+        let line = raw.trim();
+        if (!line) return null;
+        const dm = line.match(/^(\d{4}\s*\.\s*\d{1,2}\s*\.\s*\d{1,2}\.?)\s*(.*)$/);
+        const date = dm?.[1];
+        if (dm) line = dm[2];
+        const di = line.indexOf("(대)");
+        const twoCol = line.includes("(차)") && di > 0;
+        return (
+          <span key={i} className="block">
+            {date && (
+              <span className="mb-0.5 block text-[12px] font-semibold text-muted">
+                {date}
+              </span>
+            )}
+            {twoCol ? (
+              <span className="grid grid-cols-2">
+                <span className="whitespace-pre-wrap break-words pr-3">
+                  {line.slice(0, di).trim()}
+                </span>
+                <span className="whitespace-pre-wrap break-words border-l border-line pl-3">
+                  {line.slice(di).trim()}
+                </span>
+              </span>
+            ) : (
+              line && <span className="block whitespace-pre-wrap break-words">{line}</span>
+            )}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 /** 문제 카드(토스 스타일). 유형 페이지·퀴즈 공용.
  *  이론: 보기 클릭 → 즉시 채점. 실무: "정답 보기" 토글(answer_text). */
 export default function QuestionCard({
@@ -88,7 +126,7 @@ export default function QuestionCard({
               <li key={i}>
                 <button className={cls} onClick={() => pick(i)} disabled={done}>
                   <span className="mr-1.5 font-bold">{NUM[i]}</span>
-                  {c}
+                  {c.includes("(차)") ? <JournalText text={c} /> : c}
                 </button>
               </li>
             );
@@ -106,9 +144,13 @@ export default function QuestionCard({
             {showAnswer ? "정답 접기" : "정답 보기"}
           </button>
           {showAnswer && (
-            <p className="pop mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-background p-4 text-[13.5px] leading-relaxed">
-              {q.answer_text}
-            </p>
+            <div className="pop mt-3 overflow-x-auto rounded-xl bg-background p-4 text-[13.5px] leading-relaxed">
+              {q.answer_text.includes("(차)") ? (
+                <JournalText text={q.answer_text} />
+              ) : (
+                <p className="whitespace-pre-wrap break-words">{q.answer_text}</p>
+              )}
+            </div>
           )}
         </div>
       )}
