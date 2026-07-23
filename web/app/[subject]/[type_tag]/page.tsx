@@ -1,17 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import {
-  getByCategory,
-  getBySubjectTag,
-  listSubjectTags,
-  type Question,
-} from "@/models/question";
-import { globalAvgCorrect, MIN_ATTEMPTS } from "@/models/stats";
+import { getByCategory, getBySubjectTag, listSubjectTags } from "@/models/question";
+import { globalAvgCorrect } from "@/models/stats";
 import { getTypeNote, PRACTICE_TIPS } from "@/models/typeNotes";
 import { aggregateWrongStats } from "@/lib/wrongStats.server";
-import { shuffleChoices } from "@/models/shuffle";
-import QuestionCard from "@/views/QuestionCard";
 import MyStatsCard from "@/views/MyStatsCard";
 
 export const revalidate = 3600; // 1시간 ISR
@@ -49,101 +42,26 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-/** 접힌 문제 행. 오답률 있으면 빨간 칩으로 표시 (design/문제.png). */
-function QuestionRow({
-  q,
-  index,
-  wrongPct,
-  shuffled,
-}: {
-  q: Question;
-  index: number;
-  wrongPct?: number;
-  shuffled?: { choices: string[]; answerIdx: number }; // 실무 선택형: 사전 합성 보기
-}) {
-  return (
-    <details
-      className="card rise group overflow-hidden"
-      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-    >
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-4 [&::-webkit-details-marker]:hidden">
-        <span className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-soft text-[12.5px] font-bold text-blue">
-          Q{index + 1}
-        </span>
-        {wrongPct !== undefined && (
-          <span className="shrink-0 rounded-full bg-red-soft px-2.5 py-1 text-[11.5px] font-bold text-red">
-            오답률 {wrongPct}%
-          </span>
-        )}
-        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
-          {q.stem.split("\n")[0]}
-        </span>
-        {q.source && (
-          <span className="hidden shrink-0 rounded-full bg-background px-2.5 py-1 text-[11px] font-medium text-muted sm:inline">
-            {q.source}
-          </span>
-        )}
-        <svg
-          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-          className="shrink-0 text-muted transition-transform duration-200 group-open:rotate-180"
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </summary>
-      <div className="border-t border-line">
-        <QuestionCard
-          bare
-          q={q}
-          shuffled={
-            shuffled ??
-            (q.choices && q.answer_idx !== null
-              ? shuffleChoices(q.choices, q.answer_idx, q.id) // 빌드 타임 고정 셔플(F11)
-              : undefined)
-          }
-        />
-      </div>
-    </details>
-  );
-}
-
-/** 실무 문제를 4지선다로: 정답 분개 + 같은 유형(부족하면 전체 풀)에서 뽑은
- *  오답 분개 3개. 토큰 0 — 다른 문제의 실제 정답을 오답 보기로 재사용. */
-function practiceChoices(
-  q: Question,
-  pool: Question[],
-): { choices: string[]; answerIdx: number } | undefined {
-  if (!q.answer_text) return undefined;
-  const others = pool.filter(
-    (o) => o.id !== q.id && o.answer_text && o.answer_text !== q.answer_text,
-  );
-  const sameTag = others.filter((o) => o.type_tag === q.type_tag);
-  const texts = [
-    ...new Set((sameTag.length >= 3 ? sameTag : others).map((o) => o.answer_text!)),
-  ];
-  if (texts.length < 3) return undefined; // 풀 부족 시 기존 '정답 보기' 폴백
-  const distractors = shuffleChoices(texts, 0, q.id).choices.slice(0, 3);
-  return shuffleChoices([q.answer_text, ...distractors], 0, `${q.id}#c`);
-}
-
-/** 실무 파트 페이지: 과목별 분개/결산 전용. 키워드(type_tag)별 그룹 + 분개 요령. */
+/** 실무 파트 페이지: 과목별 분개/결산 허브. 키워드별 요령 정리 + 퀴즈 진입.
+ *  문제은행 방식 — 목록을 깔지 않고 풀이는 한 문제씩 퀴즈(/quiz?practice=)로. */
 async function PracticePage({ subject, slug }: { subject: string; slug: keyof typeof PRACTICE }) {
   const questions = await getByCategory(subject, PRACTICE[slug]);
   if (questions.length === 0) notFound();
   const other = slug === "분개" ? "결산" : "분개";
+  const category = PRACTICE[slug];
 
-  // 키워드별 그룹: 문항 많은 순, 미분류(기타)는 맨 뒤
-  const groups = new Map<string, Question[]>();
-  for (const q of questions) {
-    const list = groups.get(q.type_tag) ?? [];
-    list.push(q);
-    groups.set(q.type_tag, list);
-  }
-  const ordered = [...groups.entries()].sort((a, b) => {
+  // 키워드별 문항수: 많은 순, 미분류(기타)는 맨 뒤
+  const counts = new Map<string, number>();
+  for (const q of questions) counts.set(q.type_tag, (counts.get(q.type_tag) ?? 0) + 1);
+  const ordered = [...counts.entries()].sort((a, b) => {
     if (a[0] === "미분류") return 1;
     if (b[0] === "미분류") return -1;
-    return b[1].length - a[1].length;
+    return b[1] - a[1];
   });
   const label = (tag: string) => (tag === "미분류" ? "기타" : tag);
+  const quizHref = (tag?: string) =>
+    `/quiz?subject=${encodeURIComponent(subject)}&practice=${encodeURIComponent(category)}` +
+    (tag ? `&type_tag=${encodeURIComponent(tag)}` : "");
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -153,52 +71,52 @@ async function PracticePage({ subject, slug }: { subject: string; slug: keyof ty
           {slug === "분개" ? "실무 분개" : "결산"}
         </h1>
         <p className="text-[14px] text-sub">
-          {questions.length}문항 · 키워드 {ordered.length}개 · 보기 중 올바른
-          분개를 고르면 바로 채점돼요.
+          {questions.length}문항 · 키워드 {ordered.length}개 · 한 문제씩 보기 중
+          올바른 분개를 고르면 바로 채점돼요.
         </p>
-        {/* 키워드 내비: 앵커 점프 */}
-        <div className="flex flex-wrap gap-1.5 pt-1">
-          {ordered.map(([tag, list]) => (
-            <a
-              key={tag}
-              href={`#${encodeURIComponent(tag)}`}
-              className="press rounded-full bg-background px-3 py-1.5 text-[12.5px] font-bold text-sub hover:bg-blue-soft hover:text-blue"
-            >
-              {label(tag)} <span className="font-medium text-muted">{list.length}</span>
-            </a>
-          ))}
-        </div>
-        <div className="pt-1">
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Link
+            href={quizHref()}
+            className="press rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
+          >
+            {slug === "분개" ? "실무 분개" : "결산"} 풀기{" "}
+            <span className="opacity-70">{questions.length}</span>
+          </Link>
           <Link
             href={`/${encodeURIComponent(subject)}/${other}`}
-            className="press inline-block rounded-xl bg-blue-soft px-5 py-3 text-[14px] font-bold text-blue"
+            className="press rounded-xl bg-blue-soft px-5 py-3 text-[14px] font-bold text-blue"
           >
             {other === "분개" ? "실무 분개" : "결산"} 풀러 가기
           </Link>
         </div>
       </header>
 
-      {ordered.map(([tag, list]) => {
-        const tip = PRACTICE_TIPS[tag];
-        return (
-          <section key={tag} id={encodeURIComponent(tag)} className="scroll-mt-20 space-y-3">
-            <div className="px-1">
-              <h2 className="flex items-baseline gap-2 text-lg font-bold">
-                {label(tag)}
-                <span className="text-[13px] font-semibold text-muted">{list.length}문항</span>
-              </h2>
+      {/* 키워드별: 요령 정리(콘텐츠) + 해당 키워드만 풀기 */}
+      <section className="card space-y-4 p-6">
+        <h2 className="text-[16px] font-bold">키워드별 풀기 · 분개 요령</h2>
+        {ordered.map(([tag, n]) => {
+          const tip = PRACTICE_TIPS[tag];
+          return (
+            <div key={tag} className="space-y-1.5 border-b border-line pb-4 last:border-0 last:pb-0">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[14.5px] font-bold">
+                  {label(tag)}{" "}
+                  <span className="text-[12px] font-semibold text-muted">{n}문항</span>
+                </h3>
+                <Link
+                  href={quizHref(tag)}
+                  className="press shrink-0 rounded-lg bg-blue-soft px-3.5 py-1.5 text-[12.5px] font-bold text-blue"
+                >
+                  풀기
+                </Link>
+              </div>
               {tip && (
-                <p className="mt-1 rounded-xl bg-amber-soft px-4 py-3 text-[13.5px] leading-relaxed text-sub">
-                  <b className="text-foreground">분개 요령</b> · {tip}
-                </p>
+                <p className="text-[13.5px] leading-relaxed text-sub">{tip}</p>
               )}
             </div>
-            {list.map((q, i) => (
-              <QuestionRow key={q.id} q={q} index={i} shuffled={practiceChoices(q, questions)} />
-            ))}
-          </section>
-        );
-      })}
+          );
+        })}
+      </section>
     </div>
   );
 }
@@ -214,15 +132,8 @@ export default async function TypeTagPage({ params }: { params: Params }) {
   // 유형 페이지는 이론(4지선다)만. 실무 분개·결산은 /[subject]/분개, /[subject]/결산 으로 분리.
   const [all, stats] = await Promise.all([getBySubjectTag(s, t), aggregateWrongStats()]);
   if (all.length === 0) notFound(); // 존재하지 않는 조합 URL 방어
-  const pctOf = new Map(
-    stats.filter((x) => x.attempts >= MIN_ATTEMPTS).map((x) => [x.question_id, x.wrong_pct]),
-  );
-  // 오답률 높은 순 → 표본 없는 문제는 원래 순서(회차순) 유지
-  const theory = all
-    .filter((q) => q.category === "이론")
-    .sort((a, b) => (pctOf.get(b.id) ?? -1) - (pctOf.get(a.id) ?? -1));
+  const theory = all.filter((q) => q.category === "이론");
   const globalAvg = globalAvgCorrect(stats);
-  const hasPct = theory.some((q) => pctOf.has(q.id));
 
   const note = getTypeNote(t); // 유형별 핵심 정리(토큰0 큐레이션). 없으면 카드 생략.
 
@@ -244,10 +155,7 @@ export default async function TypeTagPage({ params }: { params: Params }) {
             </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">{t}</h1>
-          <p className="text-[14px] text-sub">
-            이론 {theory.length}문항
-            {hasPct && " · 오답률 높은 문제로 학습효과 UP!"}
-          </p>
+          <p className="text-[14px] text-sub">이론 {theory.length}문항</p>
           <div className="flex flex-wrap gap-2 pt-1">
             {theory.length > 0 && (
               <Link

@@ -9,6 +9,7 @@ import {
   type Question,
 } from "@/models/question";
 import { fetchWrongStats, MIN_ATTEMPTS } from "@/models/stats";
+import { getPracticeSet, type PracticeCategory } from "@/models/practice";
 import { shuffleChoices } from "@/models/shuffle";
 import { recordLocal } from "@/models/localAttempts";
 import { getSessionUser } from "@/models/auth";
@@ -22,11 +23,13 @@ export default function QuizRunner({
   typeTag,
   area,
   mode,
+  practice,
 }: {
   subject?: string;
   typeTag?: string;
   area?: string;
   mode?: string;
+  practice?: string; // "실무분개" | "결산" — 실무 4지선다(합성 보기) 모드
 }) {
   const [user, setUser] = useState<User | null>(null);
   const [items, setItems] = useState<Item[] | null>(null);
@@ -48,6 +51,19 @@ export default function QuizRunner({
     try {
       const u = await getSessionUser();
       setUser(u);
+      // 실무 분개·결산: 합성 4지선다 세트
+      if (practice && subject) {
+        const limit =
+          count === "random" ? 3 + Math.floor(Math.random() * 13) : Number(count);
+        const set = await getPracticeSet({
+          subject,
+          category: practice as PracticeCategory,
+          typeTag,
+          limit,
+        });
+        setItems(set);
+        return;
+      }
       let qs: Question[];
       if (mode === "wrong") {
         if (!u) return setNeedLogin(true);
@@ -83,7 +99,7 @@ export default function QuizRunner({
     } catch {
       setFailed(true);
     }
-  }, [subject, typeTag, area, mode, count]);
+  }, [subject, typeTag, area, mode, practice, count]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 데이터 fetch
