@@ -248,25 +248,17 @@ export default async function TypeTagPage({ params }: { params: Params }) {
             이론 {theory.length}문항
             {hasPct && " · 오답률 높은 문제로 학습효과 UP!"}
           </p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {theory.length > 0 && (
+          {/* 유형 페이지는 이론 전용 — 분개·결산 진입은 사이드바에만 둔다 */}
+          {theory.length > 0 && (
+            <div className="pt-1">
               <Link
                 href={`/quiz?subject=${encodeURIComponent(s)}&type_tag=${encodeURIComponent(t)}`}
-                className="press rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
+                className="press inline-block rounded-xl bg-blue px-5 py-3 text-[14px] font-bold text-white hover:bg-blue-dark"
               >
                 이론 풀기 <span className="opacity-70">{theory.length}</span>
               </Link>
-            )}
-            {(["분개", "결산"] as const).map((p) => (
-              <Link
-                key={p}
-                href={`/${encodeURIComponent(s)}/${p}`}
-                className="press rounded-xl bg-blue-soft px-5 py-3 text-[14px] font-bold text-blue"
-              >
-                {p === "분개" ? "실무 분개" : "결산"} 풀러 가기
-              </Link>
-            ))}
-          </div>
+            </div>
+          )}
         </header>
 
         {note && (
