@@ -69,6 +69,19 @@ def main() -> None:
                     continue
                 content_rects.append(r)
 
+        # 표(괘선 테이블)가 있는 문제도 캡처 — PDF 텍스트 추출은 표를 셀 나열로 흘려서
+        # stem만으론 표를 못 읽는다. 임베디드 이미지가 아니라 find_tables 로 찾는다.
+        try:
+            for t in page.find_tables().tables:
+                r = fitz.Rect(t.bbox)
+                if t.row_count < 2 or t.col_count < 2 or r.height < 30:
+                    continue
+                if r.y0 > 745 or r.y1 < 135:
+                    continue
+                content_rects.append(r)
+        except Exception:
+            pass  # find_tables 실패 페이지는 이미지 기준만
+
         # 이미지가 속한 문제 영역을 캡처 (문제 블록 y ~ 다음 문제 블록 y)
         done_q = set()
         for r in content_rects:

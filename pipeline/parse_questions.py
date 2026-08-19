@@ -496,6 +496,17 @@ _QSTART = re.compile(
 # 항목 번호가 자동번호라 추출 시 소실되어 신뢰 가능한 분리가 불가.
 # 문항번호도 소실되므로 [답] 마커 기준으로 블록을 나눈다.
 # ---------------------------------------------------------------------------
+def _untable(s: str) -> str:
+    """[[표]]셀|셀∥…[[/표]] 직렬화를 셀-줄 나열로 되돌린다 (정답표 해석용).
+
+    hwp_importer가 표 구조를 보존하면서 정답표도 [[표]] 한 줄이 됐다 —
+    정답표 파서는 줄 단위라 여기서만 예전 형태로 풀어 준다.
+    """
+    # 마커 짝을 요구하지 않는다 — 'A형(.*?)B형' 절단으로 [[표]]…[[/표]] 짝이 깨진
+    # 구간에도 동작해야 한다 (86회 정답표 0개 사고)
+    return re.sub(r"\[\[/?표\]\]|∥|\|", "\n", s)
+
+
 def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
     from hwp_importer import extract_document
 
@@ -511,8 +522,9 @@ def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
     km = re.search(r"A형(.*?)B형", text, re.DOTALL)
     if not km:
         raise ValueError("A형 정답표 없음")
+    key_zone = _untable(km.group(1))
     entries = re.findall(
-        rf"[{GLYPHS}](?:\s*,\s*[{GLYPHS}])*|모두\s*정답|전항\s*정답", km.group(1)
+        rf"[{GLYPHS}](?:\s*,\s*[{GLYPHS}])*|모두\s*정답|전항\s*정답", key_zone
     )
     key = [
         [0, 1, 2, 3] if "정답" in e else [GLYPHS.index(g) for g in re.findall(f"[{GLYPHS}]", e)]
@@ -522,7 +534,7 @@ def parse_hwp_answer(path: Path) -> tuple[list[dict], list[dict]]:
         # 86~98회 구형식: 정답표가 글리프가 아니라 <1>~<15> 마커 + 숫자(1~4) 줄
         digit_lines = [
             ln.strip()
-            for ln in km.group(1).split("\n")
+            for ln in key_zone.split("\n")
             if re.fullmatch(r"[1-4](\s*,\s*[1-4])*|모두\s*정답|전항\s*정답", ln.strip())
         ]
         if len(digit_lines) == 15:

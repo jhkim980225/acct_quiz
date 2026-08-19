@@ -393,12 +393,97 @@ def _iter_hwp_records(dec: bytes):
         yield tag, level, payload
 
 
+HWPTAG_CTRL_HEADER = 71
+HWPTAG_LIST_HEADER = 72
+HWPTAG_TABLE = 77
+_TBL_CTRL_ID = b" lbt"  # 'tbl ' 리틀엔디언
+
+# 표 직렬화 구분자. 셀은 |, 행은 ∥ — 한 줄로 내보내야 뒤 단계(줄 단위 상태기계)가
+# 표를 문장 줄들로 오해하지 않는다. 소비처: acct_rag StemView([[표]] 렌더),
+# parse_questions.parse_hwp_answer(정답표 해석 시 _untable).
+TABLE_CELL_SEP = "|"
+TABLE_ROW_SEP = "∥"
+
+
+def _consume_table(recs: list, i: int, on_picture) -> tuple[str, int]:
+    """recs[i](= 'tbl ' CTRL_HEADER)부터 표 하나를 소비해 (직렬화 텍스트, 다음 인덱스) 반환.
+
+    - 셀 좌표(LIST_HEADER col/row)로 구조 복원 → "[[표]]셀|셀∥…[[/표]]" 한 줄
+    - 1×1 표(테두리 박스)나 보기(①~④) 조판 표는 문단을 줄로 흘린다 (파서 호환)
+    - 표 안에 표가 중첩된 경우(자료 박스 안 원가 표 — 86회 8번) 재귀 처리.
+      중첩 결과가 실제 격자 셀 안이면 마커·구분자를 공백으로 눌러 넣는다.
+    """
+    level = recs[i][1]
+    rows = cols = 0
+    j = i + 1
+    if j < len(recs) and recs[j][0] == HWPTAG_TABLE and len(recs[j][2]) >= 8:
+        rows, cols = struct.unpack("<HH", recs[j][2][4:8])
+    if not (0 < rows * cols <= 2048):
+        return "", i + 1
+
+    grid = [["" for _ in range(cols)] for _ in range(rows)]
+    flat: list[str] = []  # 레코드 순서 그대로 (1×1·보기 표 폴백용)
+    cur: tuple[int, int] | None = None
+
+    def put(txt: str) -> None:
+        if not txt:
+            return
+        flat.append(txt)
+        if cur is not None:
+            r, c = cur
+            grid[r][c] = (grid[r][c] + " " + txt).strip()
+
+    k = j + 1
+    while k < len(recs):
+        t2, l2, p2 = recs[k]
+        if l2 <= level and t2 in (66, HWPTAG_CTRL_HEADER):
+            break  # 표 밖 문단/다음 컨트롤
+        if t2 == HWPTAG_CTRL_HEADER and p2[:4] == _TBL_CTRL_ID:
+            inner, k = _consume_table(recs, k, on_picture)
+            if cur is not None and rows * cols > 1:
+                # 격자 셀 안 중첩 — 셀 하나에 표 마커가 들어가면 겉 표 직렬화가 깨진다
+                inner = re.sub(r"\[\[/?표\]\]", " ", inner).replace(TABLE_ROW_SEP, " / ").replace(TABLE_CELL_SEP, " ")
+            put(inner.strip())
+            continue
+        if t2 == HWPTAG_LIST_HEADER and len(p2) >= 16:
+            c, r = struct.unpack("<HH", p2[8:12])
+            cur = (r, c) if r < rows and c < cols else None
+        elif t2 == HWPTAG_PARA_TEXT:
+            put(_decode_hwp_text(p2).replace("\n", " ").strip())
+        elif t2 == HWPTAG_SHAPE_COMPONENT_PICTURE and len(p2) >= _PIC_BINID_OFFSET + 2:
+            on_picture(struct.unpack("<H", p2[_PIC_BINID_OFFSET : _PIC_BINID_OFFSET + 2])[0])
+        k += 1
+
+    if not flat:
+        return "", k
+    # 보기(①~④)를 표로 조판한 회차(107·109·110회 등)는 직렬화하면 보기 파싱이 깨진다
+    is_choices = any(t[:1] in "①②③④" for t in flat)
+    if rows * cols == 1 or is_choices:
+        return "\n".join(flat) + "\n", k
+    body = TABLE_ROW_SEP.join(TABLE_CELL_SEP.join(row) for row in grid)
+    return f"[[표]]{body}[[/표]]\n", k
+
+
 def parse_hwp_section(dec: bytes, on_text, on_picture) -> None:
     """섹션 레코드를 훑어 본문 텍스트는 on_text(str), 그림은 on_picture(bin_id)로 전달.
 
+    표(tbl 컨트롤)는 _consume_table 로 구조를 복원해 한 덩어리로 내보낸다 —
+    예전처럼 셀을 줄줄이 흘리면 기출 stem에서 표가 세로 나열로 깨진다
+    (전산세무2급 86회 8번 원가 표 사고).
+
     OLE/파일 의존이 없는 순수 함수라 단위 테스트가 쉽다.
     """
-    for tag, _level, payload in _iter_hwp_records(dec):
+    recs = list(_iter_hwp_records(dec))
+    i = 0
+    while i < len(recs):
+        tag, _level, payload = recs[i]
+
+        if tag == HWPTAG_CTRL_HEADER and payload[:4] == _TBL_CTRL_ID:
+            text, i = _consume_table(recs, i, on_picture)
+            if text:
+                on_text(text)
+            continue
+
         if tag == HWPTAG_PARA_TEXT:
             on_text(_decode_hwp_text(payload))
         elif tag == HWPTAG_SHAPE_COMPONENT_PICTURE:
@@ -407,6 +492,7 @@ def parse_hwp_section(dec: bytes, on_text, on_picture) -> None:
                     "<H", payload[_PIC_BINID_OFFSET : _PIC_BINID_OFFSET + 2]
                 )[0]
                 on_picture(bin_id)
+        i += 1
 
 
 def _maybe_inflate(data: bytes, compressed: bool) -> bytes:
