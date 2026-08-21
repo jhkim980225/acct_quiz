@@ -359,8 +359,11 @@ def parse_answer_pdf(pdf_path: Path) -> tuple[list[dict], list[dict]]:
 
 
 # ---------------------------------------------------------------------------
-# 실무 섹션: 분개(일반전표입력)·결산만 추출. 프로그램 조작형(기초정보·매입매출
-# 전표·오류수정·조회)은 제외 — 웹에서 재현 불가/무의미.
+# 실무 섹션 추출. 분류(웹 표시 기준):
+#   - 일반전표: "일반전표입력" 문제 (구 명칭 실무분개)
+#   - 매입매출전표: 전산세무*만 — 회계 급수는 정책상 일반전표·결산 2분류
+#   - 결산: 결산 문제
+# 기초정보·오류수정·조회 등 프로그램 조작형은 계속 제외 — 웹에서 재현 불가/무의미.
 # ---------------------------------------------------------------------------
 _SECTION_CHARS = set("이론시험실무형AB")
 
@@ -424,11 +427,13 @@ def parse_practical(pdf_path: Path) -> list[dict]:
         if "오류" in header or "수정, 삭제" in header:
             continue  # 오류수정
         if "일반전표입력" in header:
-            category = "실무분개"
+            category = "일반전표"
+        elif "매입매출" in header and subject.startswith("전산세무"):
+            category = "매입매출전표"  # 세무 급수만 — 회계는 2분류(일반전표·결산) 정책
         elif "결산" in header:
             category = "결산"
         else:
-            continue  # 기초정보·매입매출전표·조회 등 프로그램 조작형
+            continue  # 기초정보·(회계의)매입매출전표·조회 등 프로그램 조작형
 
         # [n] 항목 분리: stem = [답] 전, answer = [답] 후. ㆍ로 시작하는 꼬리줄은 해설.
         items = list(re.finditer(r"^\[(\d+)\]", block, re.MULTILINE))
